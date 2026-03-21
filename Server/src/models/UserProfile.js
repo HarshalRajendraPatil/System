@@ -73,7 +73,7 @@ const userProfileSchema = new mongoose.Schema(
     },
     levelCap: {
       type: Number,
-      default: 20,
+      default: 100,
       min: 1,
     },
     levelProgressPercent: {

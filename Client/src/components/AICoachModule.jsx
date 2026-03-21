@@ -5,6 +5,7 @@ import {
   REALTIME_LOCAL_EVENT,
 } from '../constants/realtime';
 import {
+  deleteAiInsightHistoryItem,
   generateAiCoachReport,
   generateAiMotivation,
   getAiInsightHistory,
@@ -22,6 +23,7 @@ function AICoachModule() {
   const [history, setHistory] = useState([]);
   const [snapshot, setSnapshot] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState('');
   const [snapshotLoading, setSnapshotLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
@@ -166,6 +168,30 @@ function AICoachModule() {
     }
   };
 
+  const onDeleteHistoryItem = async (insightId) => {
+    if (!insightId) {
+      return;
+    }
+
+    if (!window.confirm('Delete this AI coach history item?')) {
+      return;
+    }
+
+    setDeletingId(insightId);
+    setError('');
+    setStatusMessage('');
+
+    try {
+      await deleteAiInsightHistoryItem(insightId);
+      setStatusMessage('AI coach history item deleted.');
+      await fetchHistory();
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to delete AI coach history item');
+    } finally {
+      setDeletingId('');
+    }
+  };
+
   return (
     <section className="ai-module">
       <section className="panel ai-toolbar-panel">
@@ -275,12 +301,14 @@ function AICoachModule() {
 
       <AICoachHistoryPanel
         history={history}
+        deletingId={deletingId}
         onLoadItem={(item) => {
           setReport(item.insight || null);
           setProvider(item.provider || '');
           setModel(item.model || '');
           setGeneratedAt(item.createdAt || '');
         }}
+        onDeleteItem={onDeleteHistoryItem}
       />
     </section>
   );

@@ -1,6 +1,6 @@
 const Project = require('../models/Project');
 const { createHttpError } = require('../utils/httpError');
-const { ensureProfileById } = require('./rpgService');
+const { ensureProfileById, syncDailyQuestFromDomainActivity } = require('./rpgService');
 const {
   PROJECT_PRIORITY,
   PROJECT_PRIORITY_ORDER,
@@ -152,6 +152,10 @@ const createProject = async (userId, payload = {}) => {
     movementHistory,
   });
 
+  await syncDailyQuestFromDomainActivity(userId, {
+    field: 'projectWork',
+  });
+
   return project.toObject();
 };
 
@@ -262,6 +266,11 @@ const updateProject = async (userId, projectId, payload = {}) => {
   }
 
   const saved = await project.save();
+
+  await syncDailyQuestFromDomainActivity(userId, {
+    field: 'projectWork',
+  });
+
   return saved.toObject();
 };
 
@@ -298,6 +307,11 @@ const moveProjectStatus = async (userId, projectId, movement = {}) => {
   }
 
   const saved = await project.save();
+
+  await syncDailyQuestFromDomainActivity(userId, {
+    field: 'projectWork',
+  });
+
   return saved.toObject();
 };
 

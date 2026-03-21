@@ -5,6 +5,8 @@ export const getAiInsightHistory = (params = {}) =>
     params,
   });
 
+export const deleteAiInsightHistoryItem = (id) => apiClient.delete(`/ai/history/${id}`);
+
 export const getLatestAiInsight = (params = {}) =>
   apiClient.get('/ai/latest', {
     params,

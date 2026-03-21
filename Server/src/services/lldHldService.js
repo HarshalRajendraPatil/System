@@ -1,6 +1,6 @@
 const LLDHLDDesign = require('../models/LLDHLDDesign');
 const { createHttpError } = require('../utils/httpError');
-const { ensureProfileById } = require('./rpgService');
+const { ensureProfileById, syncDailyQuestFromDomainActivity } = require('./rpgService');
 
 const createLLDHLDDesign = async (userId, data) => {
   const { title, designType, content, description, tags, category, difficulty, resources } = data;
@@ -30,8 +30,14 @@ const createLLDHLDDesign = async (userId, data) => {
     difficulty: difficulty || 'Medium',
     resources: resources || [],
   });
+  const saved = await newDesign.save();
 
-  return await newDesign.save();
+  await syncDailyQuestFromDomainActivity(userId, {
+    field: 'lldHld',
+    enableTheoryRevision: true,
+  });
+
+  return saved;
 };
 
 const getLLDHLDDesigns = async (userId, filters = {}) => {
@@ -159,7 +165,14 @@ const updateLLDHLDDesign = async (userId, id, data) => {
     design.notes = notes?.trim() || '';
   }
 
-  return await design.save();
+  const saved = await design.save();
+
+  await syncDailyQuestFromDomainActivity(userId, {
+    field: 'lldHld',
+    enableTheoryRevision: true,
+  });
+
+  return saved;
 };
 
 const toggleLLDHLDCompletion = async (userId, designId) => {
@@ -179,7 +192,14 @@ const toggleLLDHLDCompletion = async (userId, designId) => {
   design.isCompleted = !design.isCompleted;
   design.completedAt = design.isCompleted ? new Date() : null;
 
-  return await design.save();
+  const saved = await design.save();
+
+  await syncDailyQuestFromDomainActivity(userId, {
+    field: 'lldHld',
+    enableTheoryRevision: true,
+  });
+
+  return saved;
 };
 
 const deleteLLDHLDDesign = async (userId, id) => {

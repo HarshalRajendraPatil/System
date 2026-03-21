@@ -4,127 +4,150 @@ const ACHIEVEMENT_CRITERIA_TYPE = {
   COUNT: 'count',
 };
 
+const createBadge = (badgeId, title, description, criteriaType, metricKey, threshold) => ({
+  badgeId,
+  title,
+  description,
+  criteriaType,
+  metricKey,
+  threshold,
+});
+
+const xpBadges = [
+  [2500, 'XP Vanguard'],
+  [5000, 'XP Conqueror'],
+  [8000, 'XP Warlord'],
+  [12000, 'XP Ascendant'],
+  [17000, 'XP Dominion'],
+  [23000, 'XP Overclock'],
+  [30000, 'XP Grandmaster'],
+  [38000, 'XP Mythic'],
+  [47000, 'XP Eternal'],
+  [60000, 'XP Apex'],
+].map(([threshold, title]) =>
+  createBadge(
+    `xp_${threshold}`,
+    title,
+    `Reach ${threshold} total XP.`,
+    ACHIEVEMENT_CRITERIA_TYPE.XP,
+    'total_xp',
+    threshold,
+  ));
+
+const streakBadges = [
+  [14, 'Streak Spark'],
+  [21, 'Streak Iron'],
+  [30, 'Streak Core'],
+  [45, 'Streak Titan'],
+  [60, 'Streak Fortress'],
+  [90, 'Streak Monolith'],
+  [120, 'Streak Immortal'],
+  [180, 'Streak Infinity'],
+].map(([threshold, title]) =>
+  createBadge(
+    `streak_${threshold}`,
+    title,
+    `Maintain a ${threshold}-day streak.`,
+    ACHIEVEMENT_CRITERIA_TYPE.STREAK,
+    'current_streak',
+    threshold,
+  ));
+
+const dsaBadges = [
+  [80, 'Solver Bronze'],
+  [150, 'Solver Silver'],
+  [250, 'Solver Gold'],
+  [350, 'Solver Platinum'],
+  [500, 'Solver Diamond'],
+  [700, 'Solver Master'],
+  [900, 'Solver Grandmaster'],
+  [1200, 'Solver Mythic'],
+  [1500, 'Solver Elite'],
+  [2000, 'Solver Impossible'],
+].map(([threshold, title]) =>
+  createBadge(
+    `dsa_${threshold}`,
+    title,
+    `Solve ${threshold} DSA problems.`,
+    ACHIEVEMENT_CRITERIA_TYPE.COUNT,
+    'dsa_solved_count',
+    threshold,
+  ));
+
+const mockBadges = [
+  [10, 'Mock Initiate'],
+  [20, 'Mock Strategist'],
+  [35, 'Mock Specialist'],
+  [50, 'Mock Veteran'],
+  [75, 'Mock Commander'],
+  [100, 'Mock Legend'],
+].map(([threshold, title]) =>
+  createBadge(
+    `mock_${threshold}`,
+    title,
+    `Complete ${threshold} mock interviews.`,
+    ACHIEVEMENT_CRITERIA_TYPE.COUNT,
+    'mock_count',
+    threshold,
+  ));
+
+const projectBadges = [
+  [5, 'Builder I'],
+  [10, 'Builder II'],
+  [15, 'Builder III'],
+  [20, 'Builder IV'],
+  [30, 'Builder V'],
+  [40, 'Builder VI'],
+].map(([threshold, title]) =>
+  createBadge(
+    `project_${threshold}`,
+    title,
+    `Ship ${threshold} projects.`,
+    ACHIEVEMENT_CRITERIA_TYPE.COUNT,
+    'project_shipped_count',
+    threshold,
+  ));
+
+const behavioralBadges = [
+  [30, 'Storysmith I'],
+  [60, 'Storysmith II'],
+  [100, 'Storysmith III'],
+  [150, 'Storysmith IV'],
+  [220, 'Storysmith V'],
+].map(([threshold, title]) =>
+  createBadge(
+    `behavioral_${threshold}`,
+    title,
+    `Complete ${threshold} behavioral practice sessions.`,
+    ACHIEVEMENT_CRITERIA_TYPE.COUNT,
+    'behavioral_practice_count',
+    threshold,
+  ));
+
+const questBadges = [
+  [60, 'Consistency I'],
+  [120, 'Consistency II'],
+  [180, 'Consistency III'],
+  [260, 'Consistency IV'],
+  [365, 'Consistency V'],
+].map(([threshold, title]) =>
+  createBadge(
+    `quest_${threshold}`,
+    title,
+    `Complete ${threshold} daily quests.`,
+    ACHIEVEMENT_CRITERIA_TYPE.COUNT,
+    'quest_completed_count',
+    threshold,
+  ));
+
 const BADGE_DEFINITIONS = [
-  {
-    badgeId: 'xp_rookie_100',
-    title: 'XP Rookie',
-    description: 'Reach 100 total XP.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.XP,
-    metricKey: 'total_xp',
-    threshold: 100,
-  },
-  {
-    badgeId: 'xp_builder_300',
-    title: 'XP Builder',
-    description: 'Reach 300 total XP.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.XP,
-    metricKey: 'total_xp',
-    threshold: 300,
-  },
-  {
-    badgeId: 'xp_grinder_600',
-    title: 'XP Grinder',
-    description: 'Reach 600 total XP.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.XP,
-    metricKey: 'total_xp',
-    threshold: 600,
-  },
-  {
-    badgeId: 'xp_elite_1000',
-    title: 'XP Elite',
-    description: 'Reach 1000 total XP.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.XP,
-    metricKey: 'total_xp',
-    threshold: 1000,
-  },
-  {
-    badgeId: 'xp_legend_2000',
-    title: 'XP Legend',
-    description: 'Reach 2000 total XP.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.XP,
-    metricKey: 'total_xp',
-    threshold: 2000,
-  },
-  {
-    badgeId: 'streak_ignite_3',
-    title: 'Streak Ignite',
-    description: 'Maintain a 3-day streak.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.STREAK,
-    metricKey: 'current_streak',
-    threshold: 3,
-  },
-  {
-    badgeId: 'streak_runner_7',
-    title: 'Streak Runner',
-    description: 'Maintain a 7-day streak.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.STREAK,
-    metricKey: 'current_streak',
-    threshold: 7,
-  },
-  {
-    badgeId: 'streak_climber_14',
-    title: 'Streak Climber',
-    description: 'Maintain a 14-day streak.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.STREAK,
-    metricKey: 'current_streak',
-    threshold: 14,
-  },
-  {
-    badgeId: 'streak_anchor_21',
-    title: 'Streak Anchor',
-    description: 'Maintain a 21-day streak.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.STREAK,
-    metricKey: 'current_streak',
-    threshold: 21,
-  },
-  {
-    badgeId: 'streak_titan_30',
-    title: 'Streak Titan',
-    description: 'Maintain a 30-day streak.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.STREAK,
-    metricKey: 'current_streak',
-    threshold: 30,
-  },
-  {
-    badgeId: 'count_dsa_10',
-    title: 'Problem Solver',
-    description: 'Solve 10 DSA problems.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.COUNT,
-    metricKey: 'dsa_solved_count',
-    threshold: 10,
-  },
-  {
-    badgeId: 'count_mock_5',
-    title: 'Mock Challenger',
-    description: 'Complete 5 mock interviews.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.COUNT,
-    metricKey: 'mock_count',
-    threshold: 5,
-  },
-  {
-    badgeId: 'count_project_3',
-    title: 'Shipper',
-    description: 'Ship 3 projects.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.COUNT,
-    metricKey: 'project_shipped_count',
-    threshold: 3,
-  },
-  {
-    badgeId: 'count_behavioral_10',
-    title: 'Story Polisher',
-    description: 'Complete 10 behavioral practice sessions.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.COUNT,
-    metricKey: 'behavioral_practice_count',
-    threshold: 10,
-  },
-  {
-    badgeId: 'count_quest_20',
-    title: 'Consistency Core',
-    description: 'Complete 20 daily quests.',
-    criteriaType: ACHIEVEMENT_CRITERIA_TYPE.COUNT,
-    metricKey: 'quest_completed_count',
-    threshold: 20,
-  },
+  ...xpBadges,
+  ...streakBadges,
+  ...dsaBadges,
+  ...mockBadges,
+  ...projectBadges,
+  ...behavioralBadges,
+  ...questBadges,
 ];
 
 module.exports = {

@@ -1,7 +1,10 @@
 const InterviewSimulation = require('../models/InterviewSimulation');
+const MockInterview = require('../models/MockInterview');
 const { env } = require('../config/env');
 const { createHttpError } = require('../utils/httpError');
 const { ensureProfileById, rewardSimulationQuestCompletion } = require('./rpgService');
+const { toDateKey } = require('../utils/date');
+const { INTERVIEWER_TYPE, MOCK_FORMAT } = require('../constants/mocks');
 const {
   SIM_DIFFICULTY,
   SIM_DIFFICULTY_ORDER,
@@ -350,6 +353,130 @@ const summarizeSimulation = (simulation) => {
   };
 };
 
+const getMockFormatFromRound = (roundType) => {
+  if (roundType === SIM_ROUND_TYPE.CODING) {
+    return MOCK_FORMAT.DSA;
+  }
+
+  if (roundType === SIM_ROUND_TYPE.LLD) {
+    return MOCK_FORMAT.SYSTEM_DESIGN;
+  }
+
+  if (roundType === SIM_ROUND_TYPE.BEHAVIORAL) {
+    return MOCK_FORMAT.BEHAVIORAL;
+  }
+
+  return MOCK_FORMAT.MIXED;
+};
+
+const computeSectionScoresFromSimulation = (questions = []) => {
+  const ratingsByRound = {
+    coding: [],
+    lld: [],
+    behavioral: [],
+  };
+
+  questions.forEach((question) => {
+    const rating = Number(question.rating) || 0;
+    if (rating <= 0) {
+      return;
+    }
+
+    if (question.roundType === SIM_ROUND_TYPE.CODING) {
+      ratingsByRound.coding.push(rating);
+    }
+
+    if (question.roundType === SIM_ROUND_TYPE.LLD) {
+      ratingsByRound.lld.push(rating);
+    }
+
+    if (question.roundType === SIM_ROUND_TYPE.BEHAVIORAL) {
+      ratingsByRound.behavioral.push(rating);
+    }
+  });
+
+  const avg = (list) => (list.length
+    ? Math.round((list.reduce((sum, item) => sum + item, 0) / list.length) * 10)
+    : 0);
+
+  const codingScore = avg(ratingsByRound.coding);
+  const lldScore = avg(ratingsByRound.lld);
+  const behavioralScore = avg(ratingsByRound.behavioral);
+  const allRatings = [
+    ...ratingsByRound.coding,
+    ...ratingsByRound.lld,
+    ...ratingsByRound.behavioral,
+  ];
+  const communicationScore = avg(allRatings);
+
+  return {
+    coding: codingScore,
+    problemSolving: codingScore,
+    systemDesign: lldScore,
+    communication: communicationScore,
+    behavioral: behavioralScore,
+  };
+};
+
+const syncSimulationToMockWorkspace = async (simulation) => {
+  if (!simulation || simulation.status !== SIM_STATUS.COMPLETED) {
+    return;
+  }
+
+  const sourceKey = `simulation:${String(simulation._id)}`;
+  const existing = await MockInterview.findOne({
+    userId: simulation.userId,
+    sourceKey,
+  })
+    .select('_id')
+    .lean();
+
+  if (existing) {
+    return;
+  }
+
+  const durationMinutes = Math.max(
+    1,
+    Math.round((new Date(simulation.completedAt).getTime() - new Date(simulation.createdAt).getTime()) / 60000),
+  );
+
+  const allGaps = [];
+  (simulation.questions || []).forEach((question) => {
+    (question.gaps || []).forEach((gap) => {
+      const normalizedGap = String(gap || '').trim();
+      if (normalizedGap) {
+        allGaps.push(normalizedGap);
+      }
+    });
+  });
+
+  const actionItems = [...new Set(allGaps)].slice(0, 6);
+
+  try {
+    await MockInterview.create({
+      userId: simulation.userId,
+      sourceKey,
+      title: `AI Simulator: ${String(simulation.roundType || '').toUpperCase()} (${String(simulation.difficulty || '').toUpperCase()})`,
+      dateKey: toDateKey(simulation.completedAt || simulation.createdAt || new Date()),
+      format: getMockFormatFromRound(simulation.roundType),
+      interviewerType: INTERVIEWER_TYPE.AI,
+      overallScore: Number(simulation.overallScore100) || 0,
+      sectionScores: computeSectionScoresFromSimulation(simulation.questions || []),
+      confidenceBefore: 5,
+      confidenceAfter: Number(simulation.overallScore10) || 0,
+      durationMinutes,
+      strengths: [],
+      weaknesses: simulation.weaknesses || [],
+      actionItems,
+      notes: `Auto-synced from AI interview simulator session ${String(simulation._id)}`,
+    });
+  } catch (error) {
+    if (error?.code !== 11000) {
+      throw error;
+    }
+  }
+};
+
 const toPublicQuestion = (question) => ({
   questionNumber: question.questionNumber,
   roundType: question.roundType,
@@ -461,6 +588,32 @@ const getSimulationById = async (userId, simulationId) => {
   return toPublicSimulation(simulation);
 };
 
+const deleteSimulationById = async (userId, simulationId) => {
+  await ensureProfileById(userId);
+
+  const deleted = await InterviewSimulation.findOneAndDelete({
+    _id: simulationId,
+    userId,
+  }).lean();
+
+  if (!deleted) {
+    throw createHttpError(404, 'Simulation session not found');
+  }
+
+  const sourceKey = `simulation:${String(simulationId)}`;
+  const deletedMock = await MockInterview.findOneAndDelete({
+    userId,
+    sourceKey,
+  })
+    .select('_id')
+    .lean();
+
+  return {
+    deletedSimulationId: deleted._id,
+    deletedMockId: deletedMock?._id || null,
+  };
+};
+
 const answerSimulationQuestion = async (userId, simulationId, payload = {}) => {
   await ensureProfileById(userId);
 
@@ -521,6 +674,8 @@ const answerSimulationQuestion = async (userId, simulationId, payload = {}) => {
         xpBonus: SIM_XP_REWARD,
       });
       simulation.rewardXpGranted = true;
+
+      await syncSimulationToMockWorkspace(simulation);
     }
   } else {
     const nextQuestionNumber = currentIndex + 2;
@@ -557,6 +712,7 @@ const answerSimulationQuestion = async (userId, simulationId, payload = {}) => {
 module.exports = {
   answerSimulationQuestion,
   createSimulation,
+  deleteSimulationById,
   getSimulationById,
   getSimulationHistory,
 };

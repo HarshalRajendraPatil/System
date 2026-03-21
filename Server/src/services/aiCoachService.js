@@ -560,7 +560,25 @@ const getLatestCoachInsight = async (userId, query = {}) => {
 
 const getCoachSnapshot = async (userId) => buildPerformanceSnapshot(userId);
 
+const deleteCoachInsight = async (userId, insightId) => {
+  await ensureProfileById(userId);
+
+  const deleted = await AICoachInsight.findOneAndDelete({
+    _id: insightId,
+    userId,
+  });
+
+  if (!deleted) {
+    throw createHttpError(404, 'AI coach history item not found');
+  }
+
+  return {
+    deletedId: deleted._id,
+  };
+};
+
 module.exports = {
+  deleteCoachInsight,
   generateCoachReport,
   getCoachHistory,
   getCoachSnapshot,

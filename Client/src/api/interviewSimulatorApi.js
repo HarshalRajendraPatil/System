@@ -13,3 +13,6 @@ export const getInterviewSimulationHistory = (limit = 20) =>
 
 export const getInterviewSimulationById = (simulationId) =>
   apiClient.get(`/interview-simulator/${encodeURIComponent(simulationId)}`);
+
+export const deleteInterviewSimulationById = (simulationId) =>
+  apiClient.delete(`/interview-simulator/${encodeURIComponent(simulationId)}`);

@@ -37,6 +37,19 @@ const parseDifficulty = (value) => {
   return DSA_DIFFICULTY.EASY;
 };
 
+const resolveHigherDifficulty = (currentDifficulty, nextDifficulty) => {
+  const order = {
+    [DSA_DIFFICULTY.EASY]: 1,
+    [DSA_DIFFICULTY.MEDIUM]: 2,
+    [DSA_DIFFICULTY.HARD]: 3,
+  };
+
+  const safeCurrent = parseDifficulty(currentDifficulty);
+  const safeNext = parseDifficulty(nextDifficulty);
+
+  return (order[safeNext] || 1) >= (order[safeCurrent] || 1) ? safeNext : safeCurrent;
+};
+
 const normalizeQuestPayload = (payload = {}) => {
   const normalizedDateKey = payload.dateKey ? toDateKey(payload.dateKey) : toDateKey(new Date());
 
@@ -85,8 +98,45 @@ const calculateDailyQuestXp = (quest) => {
   return Math.max(0, xp);
 };
 
-const isCompletedQuestDay = (quest) =>
-  QUEST_FIELDS.some((field) => quest[field] === true) || quest.hoursLogged > 0;
+const calculateXpBreakdown = (quest) => {
+  const breakdown = {};
+
+  if (quest.dsa && quest.lldHld) {
+    breakdown.dsaAndLldBonus = BASE_QUEST_XP.DSA_AND_LLD_BONUS;
+  }
+
+  if (quest.projectWork) {
+    breakdown.projectWork = BASE_QUEST_XP.PROJECT_WORK;
+  }
+
+  if (quest.theoryRevision) {
+    breakdown.theoryRevision = BASE_QUEST_XP.THEORY_REVISION;
+  }
+
+  if (quest.mockInterview) {
+    breakdown.mockInterview = BASE_QUEST_XP.MOCK_INTERVIEW;
+  }
+
+  if (quest.behavioralStories) {
+    breakdown.behavioralStories = BASE_QUEST_XP.BEHAVIORAL_STORIES;
+  }
+
+  if (quest.dsa) {
+    breakdown.dsaDifficulty = DSA_DIFFICULTY_XP[quest.dsaDifficulty] || DSA_DIFFICULTY_XP[DSA_DIFFICULTY.EASY];
+  }
+
+  const hoursXp = Math.round(quest.hoursLogged * BASE_QUEST_XP.HOURS_MULTIPLIER);
+  if (hoursXp > 0) {
+    breakdown.hours = hoursXp;
+  }
+
+  return breakdown;
+};
+
+const isCompletedQuestDay = (quest) => {
+  const completedQuestCount = QUEST_FIELDS.filter((field) => quest[field] === true).length;
+  return completedQuestCount >= 3;
+};
 
 const calculateLongestStreak = (dateKeys) => {
   if (!dateKeys.length) {
@@ -156,6 +206,7 @@ const getDefaultQuestResponse = (dateKey) => ({
   xpEarned: 0,
   bonusXp: 0,
   simulationCompletions: 0,
+  xpBreakdown: {},
   completed: false,
 });
 
@@ -227,6 +278,23 @@ const getLeaderboard = async (limit = 10) => {
   return leaderboard;
 };
 
+const getGlobalLeaderboardData = async (userId, limit = 50) => {
+  const profile = await ensureProfileById(userId);
+  const safeLimit = Math.min(200, Math.max(10, Number(limit) || 50));
+
+  const [leaderboard, totalPlayers, currentUserRank] = await Promise.all([
+    getLeaderboard(safeLimit),
+    UserProfile.countDocuments({ isActive: true }),
+    UserProfile.countDocuments({ isActive: true, totalXp: { $gt: profile.totalXp } }),
+  ]);
+
+  return {
+    leaderboard,
+    totalPlayers,
+    currentUserRank: currentUserRank + 1,
+  };
+};
+
 const getDashboardData = async (userId, dateKey) => {
   const profile = await ensureProfileById(userId);
   const {
@@ -266,6 +334,7 @@ const upsertDailyQuest = async (userId, payload) => {
   const bonusXp = Number(existingQuest?.bonusXp) || 0;
   const xpEarned = calculateDailyQuestXp(normalizedQuest) + bonusXp;
   const completed = isCompletedQuestDay(normalizedQuest);
+  const xpBreakdown = calculateXpBreakdown(normalizedQuest);
 
   const updatedQuest = await DailyQuest.findOneAndUpdate(
     {
@@ -279,6 +348,7 @@ const upsertDailyQuest = async (userId, payload) => {
         bonusXp,
         simulationCompletions: Number(existingQuest?.simulationCompletions) || 0,
         completed,
+        xpBreakdown,
       },
     },
     {
@@ -336,6 +406,7 @@ const rewardSimulationQuestCompletion = async (userId, options = {}) => {
   const simulationCompletions = (Number(existingQuest?.simulationCompletions) || 0) + 1;
   const xpEarned = calculateDailyQuestXp(normalizedQuest) + nextBonusXp;
   const completed = isCompletedQuestDay(normalizedQuest);
+  const xpBreakdown = calculateXpBreakdown(normalizedQuest);
 
   const updatedQuest = await DailyQuest.findOneAndUpdate(
     {
@@ -348,6 +419,7 @@ const rewardSimulationQuestCompletion = async (userId, options = {}) => {
         xpEarned,
         bonusXp: nextBonusXp,
         simulationCompletions,
+        xpBreakdown,
         completed,
       },
     },
@@ -378,9 +450,190 @@ const rewardSimulationQuestCompletion = async (userId, options = {}) => {
   };
 };
 
+const syncDailyQuestFromDomainActivity = async (userId, options = {}) => {
+  const profile = await ensureProfileById(userId);
+  const field = String(options.field || '').trim();
+  const shouldEnableTheory = Boolean(options.enableTheoryRevision);
+
+  if (!field || !QUEST_FIELDS.includes(field)) {
+    return null;
+  }
+
+  const dateKey = options.dateKey ? toDateKey(options.dateKey) : toDateKey(new Date());
+
+  const existingQuest = await DailyQuest.findOne({
+    userId: profile._id,
+    dateKey,
+  }).lean();
+
+  const nextQuest = {
+    dateKey,
+    dsa: Boolean(existingQuest?.dsa),
+    lldHld: Boolean(existingQuest?.lldHld),
+    projectWork: Boolean(existingQuest?.projectWork),
+    theoryRevision: Boolean(existingQuest?.theoryRevision),
+    mockInterview: Boolean(existingQuest?.mockInterview),
+    behavioralStories: Boolean(existingQuest?.behavioralStories),
+    dsaDifficulty: parseDifficulty(existingQuest?.dsaDifficulty),
+    hoursLogged: clampHours(existingQuest?.hoursLogged),
+  };
+
+  nextQuest[field] = true;
+
+  if (field === 'dsa' && options.dsaDifficulty) {
+    nextQuest.dsaDifficulty = resolveHigherDifficulty(nextQuest.dsaDifficulty, options.dsaDifficulty);
+  }
+
+  if (shouldEnableTheory) {
+    nextQuest.theoryRevision = true;
+  }
+
+  const bonusXp = Number(existingQuest?.bonusXp) || 0;
+  const simulationCompletions = Number(existingQuest?.simulationCompletions) || 0;
+  const xpBreakdown = calculateXpBreakdown(nextQuest);
+  const xpEarned = calculateDailyQuestXp(nextQuest) + bonusXp;
+  const completed = isCompletedQuestDay(nextQuest);
+
+  const updatedQuest = await DailyQuest.findOneAndUpdate(
+    {
+      userId: profile._id,
+      dateKey,
+    },
+    {
+      $set: {
+        ...nextQuest,
+        bonusXp,
+        simulationCompletions,
+        xpBreakdown,
+        xpEarned,
+        completed,
+      },
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    },
+  ).lean();
+
+  const {
+    profile: refreshedProfile,
+    levelInfo,
+    achievements,
+  } = await recalculateProfileProgress(profile._id);
+
+  const leaderboard = await getLeaderboard();
+  const rank =
+    (await UserProfile.countDocuments({ isActive: true, totalXp: { $gt: refreshedProfile.totalXp } })) + 1;
+
+  return {
+    quest: updatedQuest,
+    profile: refreshedProfile,
+    level: levelInfo,
+    rank,
+    leaderboard,
+    achievements,
+  };
+};
+
 const getAchievementsData = async (userId) => {
   await ensureProfileById(userId);
   return evaluateAndFetchAchievements(userId, {});
+};
+
+const getQuestXpSummary = async (userId, dateKey) => {
+  const profile = await ensureProfileById(userId);
+  const normalizedDateKey = toDateKey(dateKey);
+  const dailyQuest = await DailyQuest.findOne({
+    userId: profile._id,
+    dateKey: normalizedDateKey,
+  }).lean();
+
+  if (!dailyQuest) {
+    return {
+      dateKey: normalizedDateKey,
+      questItems: [],
+      sourceTotals: {
+        dsa: 0,
+        lldHld: 0,
+        projectWork: 0,
+        theoryRevision: 0,
+        mockInterview: 0,
+        behavioralStories: 0,
+        hoursLogged: 0,
+        simulationBonus: 0,
+      },
+      totalXp: 0,
+    };
+  }
+
+  const breakdown = dailyQuest.xpBreakdown || {};
+  const questItems = [
+    {
+      key: 'dsa',
+      label: `DSA (${dailyQuest.dsaDifficulty || DSA_DIFFICULTY.EASY})`,
+      completed: Boolean(dailyQuest.dsa),
+      xp: Number(breakdown.dsaDifficulty) || 0,
+    },
+    {
+      key: 'lldHld',
+      label: 'LLD/HLD',
+      completed: Boolean(dailyQuest.lldHld),
+      xp: dailyQuest.dsa && dailyQuest.lldHld ? Number(breakdown.dsaAndLldBonus) || 0 : 0,
+    },
+    {
+      key: 'projectWork',
+      label: 'Project Work',
+      completed: Boolean(dailyQuest.projectWork),
+      xp: Number(breakdown.projectWork) || 0,
+    },
+    {
+      key: 'theoryRevision',
+      label: 'Theory Revision',
+      completed: Boolean(dailyQuest.theoryRevision),
+      xp: Number(breakdown.theoryRevision) || 0,
+    },
+    {
+      key: 'mockInterview',
+      label: 'Mocks',
+      completed: Boolean(dailyQuest.mockInterview),
+      xp: Number(breakdown.mockInterview) || 0,
+    },
+    {
+      key: 'behavioralStories',
+      label: 'Behaviorals',
+      completed: Boolean(dailyQuest.behavioralStories),
+      xp: Number(breakdown.behavioralStories) || 0,
+    },
+    {
+      key: 'hoursLogged',
+      label: `Hours Logged (${Number(dailyQuest.hoursLogged) || 0}h)`,
+      completed: (Number(dailyQuest.hoursLogged) || 0) > 0,
+      xp: Number(breakdown.hours) || 0,
+    },
+    {
+      key: 'simulationBonus',
+      label: `AI Simulator Bonus (${Number(dailyQuest.simulationCompletions) || 0})`,
+      completed: (Number(dailyQuest.bonusXp) || 0) > 0,
+      xp: Number(dailyQuest.bonusXp) || 0,
+    },
+  ];
+
+  return {
+    dateKey: normalizedDateKey,
+    questItems,
+    sourceTotals: {
+      dsa: Number(breakdown.dsaDifficulty) || 0,
+      lldHld: dailyQuest.dsa && dailyQuest.lldHld ? Number(breakdown.dsaAndLldBonus) || 0 : 0,
+      projectWork: Number(breakdown.projectWork) || 0,
+      theoryRevision: Number(breakdown.theoryRevision) || 0,
+      mockInterview: Number(breakdown.mockInterview) || 0,
+      behavioralStories: Number(breakdown.behavioralStories) || 0,
+      hoursLogged: Number(breakdown.hours) || 0,
+      simulationBonus: Number(dailyQuest.bonusXp) || 0,
+    },
+    totalXp: Number(dailyQuest.xpEarned) || 0,
+  };
 };
 
 const getQuestHistory = async (userId, query = {}) => {
@@ -412,14 +665,18 @@ const getQuestHistory = async (userId, query = {}) => {
 
 module.exports = {
   calculateDailyQuestXp,
+  calculateXpBreakdown,
   ensureProfileById,
   getDashboardData,
+  getGlobalLeaderboardData,
   getAchievementsData,
   getLeaderboard,
   getQuestHistory,
+  getQuestXpSummary,
   isCompletedQuestDay,
   normalizeQuestPayload,
   recalculateProfileProgress,
   rewardSimulationQuestCompletion,
+  syncDailyQuestFromDomainActivity,
   upsertDailyQuest,
 };

@@ -1,4 +1,5 @@
 const {
+  deleteCoachInsight,
   generateCoachReport,
   getCoachHistory,
   getCoachSnapshot,
@@ -110,7 +111,30 @@ const getSnapshot = async (req, res, next) => {
   }
 };
 
+const deleteInsightHistoryItem = async (req, res, next) => {
+  try {
+    const result = await deleteCoachInsight(req.user.userId, req.params.id);
+
+    publishDomainUpdate(req.user.userId, {
+      domain: REALTIME_DOMAINS.AI,
+      action: REALTIME_ACTIONS.DELETED,
+      message: 'An AI coach history item was deleted from another device.',
+      metadata: {
+        insightId: result?.deletedId || req.params.id,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
+  deleteInsightHistoryItem,
   getInsightHistory,
   getLatestInsight,
   getSnapshot,

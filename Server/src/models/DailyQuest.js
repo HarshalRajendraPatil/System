@@ -68,6 +68,10 @@ const dailyQuestSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    xpBreakdown: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
   },
   {
     timestamps: true,

@@ -3,11 +3,18 @@ import confetti from 'canvas-confetti';
 import { toast } from 'sonner';
 import './App.css';
 import { getCurrentUser, logoutUser } from './api/authApi';
-import { getDailyQuestHistory, getDashboard, updateDailyQuest } from './api/rpgApi';
+import {
+  getDailyQuestHistory,
+  getDashboard,
+  getGlobalLeaderboard,
+  getQuestDetail,
+  updateDailyQuest,
+} from './api/rpgApi';
 import { REALTIME_DOMAINS } from './constants/realtime';
 import RealtimeCenter from './components/RealtimeCenter';
 import AuthPanel from './components/AuthPanel';
 import DailyQuestPanel from './components/DailyQuestPanel';
+import QuestDetailPanel from './components/QuestDetailPanel';
 import Leaderboard from './components/Leaderboard';
 import LevelProgress from './components/LevelProgress';
 import StatCard from './components/StatCard';
@@ -21,7 +28,9 @@ import AICoachModule from './components/AICoachModule';
 import PortfolioModule from './components/PortfolioModule';
 import AchievementsPanel from './components/AchievementsPanel';
 import InterviewSimulatorModule from './components/InterviewSimulatorModule';
+import AdminDashboard from './components/AdminDashboard';
 import { formatDateLabel, calculateQuestXpPreview } from './utils/rpgMath';
+import { formatNumber } from './utils/formatting';
 
 const buildQuestState = (quest) => ({
   dateKey: quest?.dateKey || '',
@@ -54,6 +63,10 @@ const getInitialActiveTab = () => {
     return 'analytics';
   }
 
+  if (window.location.pathname === '/admin') {
+    return 'admin';
+  }
+
   return 'dashboard';
 };
 
@@ -67,9 +80,14 @@ function App() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
+  const [globalLeaderboardMeta, setGlobalLeaderboardMeta] = useState({
+    totalPlayers: 0,
+    currentUserRank: 0,
+  });
   const [activeTab, setActiveTab] = useState(getInitialActiveTab);
   const [currentUser, setCurrentUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
+  const [selectedQuestDateKey, setSelectedQuestDateKey] = useState(null);
   const realtimeRefreshTimerRef = useRef(null);
   const unlockAnimationTimerRef = useRef(null);
   const publicPortfolioSlug = useMemo(
@@ -119,6 +137,7 @@ function App() {
       Promise.all([
         getDashboard(),
         getDailyQuestHistory(),
+        getGlobalLeaderboard(50),
       ]),
     [],
   );
@@ -128,8 +147,18 @@ function App() {
     setError('');
 
     try {
-      const [dashboardData, historyData] = await fetchDashboardBundle();
-      applyDashboardBundle(dashboardData, historyData);
+      const [dashboardData, historyData, leaderboardData] = await fetchDashboardBundle();
+      applyDashboardBundle(
+        {
+          ...dashboardData,
+          leaderboard: leaderboardData?.leaderboard || dashboardData?.leaderboard || [],
+        },
+        historyData,
+      );
+      setGlobalLeaderboardMeta({
+        totalPlayers: Number(leaderboardData?.totalPlayers) || 0,
+        currentUserRank: Number(leaderboardData?.currentUserRank) || Number(dashboardData?.rank) || 0,
+      });
     } catch (requestError) {
       const message = requestError.message || 'Unable to load dashboard data.';
       if (/session|log in|authentication/i.test(message)) {
@@ -147,8 +176,18 @@ function App() {
 
   const hydrateDataSilently = useCallback(async () => {
     try {
-      const [dashboardData, historyData] = await fetchDashboardBundle();
-      applyDashboardBundle(dashboardData, historyData);
+      const [dashboardData, historyData, leaderboardData] = await fetchDashboardBundle();
+      applyDashboardBundle(
+        {
+          ...dashboardData,
+          leaderboard: leaderboardData?.leaderboard || dashboardData?.leaderboard || [],
+        },
+        historyData,
+      );
+      setGlobalLeaderboardMeta({
+        totalPlayers: Number(leaderboardData?.totalPlayers) || 0,
+        currentUserRank: Number(leaderboardData?.currentUserRank) || Number(dashboardData?.rank) || 0,
+      });
     } catch {
       // Silent sync should not interrupt the current screen.
     }
@@ -210,11 +249,21 @@ function App() {
       return;
     }
 
-    const nextPath = activeTab === 'analytics' ? '/analytics' : '/';
+    const nextPath = activeTab === 'analytics'
+      ? '/analytics'
+      : activeTab === 'admin' && currentUser.role === 'admin'
+        ? '/admin'
+        : '/';
     if (window.location.pathname !== nextPath) {
       window.history.replaceState({}, '', nextPath);
     }
   }, [activeTab, currentUser, publicPortfolioSlug]);
+
+  useEffect(() => {
+    if (currentUser?.role !== 'admin' && activeTab === 'admin') {
+      setActiveTab('dashboard');
+    }
+  }, [activeTab, currentUser]);
 
   const onAuthenticated = async (user) => {
     setCurrentUser(user);
@@ -236,7 +285,9 @@ function App() {
     setRecentUnlockedBadgeIds([]);
     setError('');
     setStatusMessage('');
+    setGlobalLeaderboardMeta({ totalPlayers: 0, currentUserRank: 0 });
     setActiveTab('dashboard');
+    setSelectedQuestDateKey(null);
     setLoading(false);
 
     if (realtimeRefreshTimerRef.current) {
@@ -310,6 +361,18 @@ function App() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const onQuestHistoryClick = (dateKey) => {
+    setSelectedQuestDateKey(dateKey);
+  };
+
+  const closeQuestDetail = () => {
+    setSelectedQuestDateKey(null);
+  };
+
+  const onEditQuestFromDetail = () => {
+    closeQuestDetail();
   };
 
   if (authChecking) {
@@ -413,6 +476,7 @@ function App() {
           const actionLabel = payload?.action || 'updated';
 
           setStatusMessage(payload?.message || `Live sync: ${domainLabel} ${actionLabel}.`);
+          scheduleSilentRealtimeSync();
         }}
       />
 
@@ -487,6 +551,15 @@ function App() {
         >
           Portfolio
         </button>
+        {currentUser.role === 'admin' ? (
+          <button
+            type="button"
+            className={`nav-tab ${activeTab === 'admin' ? 'active' : ''}`}
+            onClick={() => setActiveTab('admin')}
+          >
+            Admin
+          </button>
+        ) : null}
       </nav>
 
       {activeTab === 'dashboard' ? (
@@ -503,11 +576,11 @@ function App() {
             <StatCard
               label="Level"
               value={`${dashboard.profile.level} / ${dashboard.profile.levelCap}`}
-              helper={`${dashboard.profile.xpToNextLevel} XP to next level`}
+              helper={`${formatNumber(dashboard.profile.xpToNextLevel)} XP to next level`}
             />
             <StatCard
               label="Total XP"
-              value={dashboard.profile.totalXp}
+              value={formatNumber(dashboard.profile.totalXp)}
               helper={`${dashboard.profile.levelProgressPercent}% progress in current level`}
             />
             <StatCard
@@ -542,7 +615,12 @@ function App() {
               isSaving={saving}
             />
 
-            <Leaderboard items={dashboard.leaderboard || []} />
+            <Leaderboard
+              items={dashboard.leaderboard || []}
+              totalPlayers={globalLeaderboardMeta.totalPlayers}
+              currentUserRank={globalLeaderboardMeta.currentUserRank || dashboard.rank}
+              currentUsername={dashboard.profile?.username || currentUser?.username || ''}
+            />
           </section>
 
           <section className="panel">
@@ -554,7 +632,18 @@ function App() {
             {history.length ? (
               <div className="history-list">
                 {history.map((entry) => (
-                  <article key={entry._id || entry.dateKey} className="history-row">
+                  <article
+                    key={entry._id || entry.dateKey}
+                    className="history-row"
+                    onClick={() => onQuestHistoryClick(entry.dateKey)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        onQuestHistoryClick(entry.dateKey);
+                      }
+                    }}
+                  >
                     <span>{formatDateLabel(entry.dateKey)}</span>
                     <span>{entry.completed ? 'Completed' : 'In Progress'}</span>
                     <strong>{entry.xpEarned} XP</strong>
@@ -565,6 +654,15 @@ function App() {
               <p className="empty-text">No entries yet. Save your first daily quest.</p>
             )}
           </section>
+
+          {selectedQuestDateKey ? (
+            <QuestDetailPanel
+              dateKey={selectedQuestDateKey}
+              onClose={closeQuestDetail}
+              onEdit={onEditQuestFromDetail}
+              isToday={selectedQuestDateKey === quest.dateKey}
+            />
+          ) : null}
         </>
       ) : null}
 
@@ -585,6 +683,10 @@ function App() {
       {activeTab === 'simulator' ? <InterviewSimulatorModule /> : null}
 
       {activeTab === 'portfolio' ? <PortfolioModule /> : null}
+
+      {activeTab === 'admin' && currentUser.role === 'admin' ? (
+        <AdminDashboard currentUserId={currentUser.id} />
+      ) : null}
     </main>
   );
 }

@@ -98,6 +98,12 @@ const mockInterviewSchema = new mongoose.Schema(
       default: '',
       maxlength: 4000,
     },
+    sourceKey: {
+      type: String,
+      trim: true,
+      default: '',
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -107,6 +113,19 @@ const mockInterviewSchema = new mongoose.Schema(
 mockInterviewSchema.index({ userId: 1, dateKey: 1 });
 mockInterviewSchema.index({ userId: 1, weaknesses: 1 });
 mockInterviewSchema.index({ userId: 1, format: 1, interviewerType: 1 });
+mockInterviewSchema.index(
+  { userId: 1, sourceKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      sourceKey: {
+        $exists: true,
+        $type: 'string',
+        $ne: '',
+      },
+    },
+  },
+);
 mockInterviewSchema.index({ title: 'text', notes: 'text', weaknesses: 'text', strengths: 'text' });
 
 module.exports = mongoose.model('MockInterview', mockInterviewSchema);

@@ -1,4 +1,21 @@
+import { useEffect, useMemo, useState } from 'react';
+import PaginationControls from './PaginationControls';
+
 function DSAProblemsList({ problems, isLoading, onDelete, filters, onFilterChange }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil((problems || []).length / pageSize));
+  const pagedProblems = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return (problems || []).slice(start, start + pageSize);
+  }, [problems, page]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   if (isLoading) {
     return <p className="loading">Loading DSA problems...</p>;
   }
@@ -38,7 +55,8 @@ function DSAProblemsList({ problems, isLoading, onDelete, filters, onFilterChang
       </div>
 
       {problems.length ? (
-        <div className="problems-table">
+        <>
+          <div className="problems-table">
           <div className="table-header">
             <span>Problem</span>
             <span>Difficulty</span>
@@ -48,7 +66,7 @@ function DSAProblemsList({ problems, isLoading, onDelete, filters, onFilterChang
             <span>Action</span>
           </div>
 
-          {problems.map((problem) => (
+          {pagedProblems.map((problem) => (
             <div key={problem._id} className="table-row">
               <span className="problem-title">
                 {problem.link ? (
@@ -81,7 +99,16 @@ function DSAProblemsList({ problems, isLoading, onDelete, filters, onFilterChang
               </button>
             </div>
           ))}
-        </div>
+          </div>
+
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            totalItems={problems.length}
+            pageSize={pageSize}
+            onPageChange={(next) => setPage(Math.min(totalPages, Math.max(1, next)))}
+          />
+        </>
       ) : (
         <p className="empty-text">No problems logged yet. Start by logging your first problem!</p>
       )}

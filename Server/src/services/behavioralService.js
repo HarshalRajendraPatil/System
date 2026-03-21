@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const BehavioralStory = require('../models/BehavioralStory');
 const { createHttpError } = require('../utils/httpError');
-const { ensureProfileById } = require('./rpgService');
+const { ensureProfileById, syncDailyQuestFromDomainActivity } = require('./rpgService');
 const { toDateKey, shiftDateKey } = require('../utils/date');
 const {
   CORE_COMPETENCIES,
@@ -124,6 +124,10 @@ const createStory = async (userId, payload = {}) => {
     ...normalized,
   });
 
+  await syncDailyQuestFromDomainActivity(userId, {
+    field: 'behavioralStories',
+  });
+
   return created.toObject();
 };
 
@@ -231,6 +235,11 @@ const updateStory = async (userId, storyId, payload = {}) => {
   story.isFavorite = normalized.isFavorite;
 
   const updated = await story.save();
+
+  await syncDailyQuestFromDomainActivity(userId, {
+    field: 'behavioralStories',
+  });
+
   return updated.toObject();
 };
 

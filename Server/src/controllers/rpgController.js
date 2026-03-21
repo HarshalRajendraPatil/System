@@ -1,9 +1,13 @@
 const {
   getAchievementsData,
   getDashboardData,
+  getGlobalLeaderboardData,
   getQuestHistory,
+  getQuestXpSummary,
   upsertDailyQuest,
+  ensureProfileById,
 } = require('../services/rpgService');
+const DailyQuest = require('../models/DailyQuest');
 const {
   emitLeaderboardEvent,
   publishDomainUpdate,
@@ -87,9 +91,81 @@ const getAchievements = async (req, res, next) => {
   }
 };
 
+const getGlobalLeaderboard = async (req, res, next) => {
+  try {
+    const limit = Number(req.query.limit) || 50;
+    const leaderboard = await getGlobalLeaderboardData(req.user.userId, limit);
+
+    return res.status(200).json({
+      success: true,
+      data: leaderboard,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const getQuestDetail = async (req, res, next) => {
+  try {
+    const profile = await ensureProfileById(req.user.userId);
+    const { dateKey } = req.query;
+
+    if (!dateKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'dateKey query parameter is required',
+      });
+    }
+
+    const quest = await DailyQuest.findOne({
+      userId: profile._id,
+      dateKey,
+    }).lean();
+
+    if (!quest) {
+      return res.status(404).json({
+        success: false,
+        error: 'Quest not found for the specified date',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: quest,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const getQuestXpOverview = async (req, res, next) => {
+  try {
+    const { dateKey } = req.query;
+
+    if (!dateKey) {
+      return res.status(400).json({
+        success: false,
+        error: 'dateKey query parameter is required',
+      });
+    }
+
+    const xpSummary = await getQuestXpSummary(req.user.userId, dateKey);
+
+    return res.status(200).json({
+      success: true,
+      data: xpSummary,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   getAchievements,
   getDashboard,
   getDailyQuestHistory,
+  getGlobalLeaderboard,
+  getQuestDetail,
+  getQuestXpOverview,
   updateDailyQuest,
 };

@@ -1,4 +1,21 @@
+import { useEffect, useMemo, useState } from 'react';
+import PaginationControls from './PaginationControls';
+
 function BehavioralStoryList({ stories, onEdit, onDelete }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
+  const totalPages = Math.max(1, Math.ceil((stories || []).length / pageSize));
+  const pagedStories = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return (stories || []).slice(start, start + pageSize);
+  }, [stories, page]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
   return (
     <section className="panel behavioral-list-panel">
       <div className="panel__head">
@@ -7,8 +24,9 @@ function BehavioralStoryList({ stories, onEdit, onDelete }) {
       </div>
 
       {stories.length ? (
-        <div className="behavioral-story-list">
-          {stories.map((story) => (
+        <>
+          <div className="behavioral-story-list">
+          {pagedStories.map((story) => (
             <article className="behavioral-story-row" key={story._id}>
               <div className="behavioral-story-main">
                 <h3>
@@ -43,7 +61,15 @@ function BehavioralStoryList({ stories, onEdit, onDelete }) {
               </div>
             </article>
           ))}
-        </div>
+          </div>
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            totalItems={stories.length}
+            pageSize={pageSize}
+            onPageChange={(next) => setPage(Math.min(totalPages, Math.max(1, next)))}
+          />
+        </>
       ) : (
         <p className="empty-text">No stories found. Add your first STAR story.</p>
       )}

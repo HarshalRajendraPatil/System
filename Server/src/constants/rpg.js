@@ -28,7 +28,7 @@ const BASE_QUEST_XP = {
   HOURS_MULTIPLIER: 5,
 };
 
-const LEVEL_CAP = 20;
+const LEVEL_CAP = 100;
 
 const getLevelThreshold = (level) => {
   if (level <= 1) {

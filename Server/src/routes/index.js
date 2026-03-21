@@ -1,5 +1,6 @@
 const express = require('express');
-const { authenticateRequest } = require('../middlewares/auth');
+const { USER_ROLES } = require('../constants/auth');
+const { authenticateRequest, authorizeRoles } = require('../middlewares/auth');
 const authRoutes = require('./authRoutes');
 const rpgRoutes = require('./rpgRoutes');
 const dsaRoutes = require('./dsaRoutes');
@@ -10,6 +11,7 @@ const behavioralRoutes = require('./behavioralRoutes');
 const aiRoutes = require('./aiRoutes');
 const portfolioRoutes = require('./portfolioRoutes');
 const interviewSimulatorRoutes = require('./interviewSimulatorRoutes');
+const adminRoutes = require('./adminRoutes');
 
 const routes = express.Router();
 
@@ -30,6 +32,12 @@ routes.use('/mocks', authenticateRequest, mockRoutes);
 routes.use('/behavioral', authenticateRequest, behavioralRoutes);
 routes.use('/ai', authenticateRequest, aiRoutes);
 routes.use('/interview-simulator', authenticateRequest, interviewSimulatorRoutes);
+routes.use(
+  '/admin',
+  authenticateRequest,
+  authorizeRoles(USER_ROLES.ADMIN),
+  adminRoutes,
+);
 routes.use('/portfolio', portfolioRoutes);
 
 module.exports = routes;

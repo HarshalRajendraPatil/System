@@ -4,7 +4,12 @@ const DSAProblem = require('../models/DSAProblem');
 const UserProfile = require('../models/UserProfile');
 const { toDateKey } = require('../utils/date');
 const { createHttpError } = require('../utils/httpError');
-const { ensureProfileById, recalculateProfileProgress, getLeaderboard } = require('./rpgService');
+const {
+  ensureProfileById,
+  recalculateProfileProgress,
+  getLeaderboard,
+  syncDailyQuestFromDomainActivity,
+} = require('./rpgService');
 
 const LEETCODE_GRAPHQL_ENDPOINT = 'https://leetcode.com/graphql';
 const LEETSCAN_ENDPOINT = 'https://leetscan.vercel.app';
@@ -81,12 +86,17 @@ const createDSAProblem = async (payload) => {
 
   const { profile: refreshedProfile, levelInfo } = await recalculateProfileProgress(profile._id);
   const leaderboard = await getLeaderboard();
+  const questSync = await syncDailyQuestFromDomainActivity(profile._id, {
+    field: 'dsa',
+    dsaDifficulty: normalized.difficulty,
+  });
 
   return {
     problem: problem.toObject(),
-    profile: refreshedProfile,
-    level: levelInfo,
-    leaderboard,
+    profile: questSync?.profile || refreshedProfile,
+    level: questSync?.level || levelInfo,
+    leaderboard: questSync?.leaderboard || leaderboard,
+    todayQuest: questSync?.quest || null,
   };
 };
 
@@ -892,12 +902,17 @@ const updateDSAProblem = async (userId, problemId, payload) => {
 
   const { profile: refreshedProfile, levelInfo } = await recalculateProfileProgress(profile._id);
   const leaderboard = await getLeaderboard();
+  const questSync = await syncDailyQuestFromDomainActivity(profile._id, {
+    field: 'dsa',
+    dsaDifficulty: normalized.difficulty,
+  });
 
   return {
     problem: updated,
-    profile: refreshedProfile,
-    level: levelInfo,
-    leaderboard,
+    profile: questSync?.profile || refreshedProfile,
+    level: questSync?.level || levelInfo,
+    leaderboard: questSync?.leaderboard || leaderboard,
+    todayQuest: questSync?.quest || null,
   };
 };
 

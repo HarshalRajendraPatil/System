@@ -1,6 +1,7 @@
 const {
   answerSimulationQuestion,
   createSimulation,
+  deleteSimulationById,
   getSimulationById,
   getSimulationHistory,
 } = require('../services/interviewSimulatorService');
@@ -114,7 +115,41 @@ const getSimulationDetails = async (req, res, next) => {
   }
 };
 
+const deleteSimulationSession = async (req, res, next) => {
+  try {
+    const result = await deleteSimulationById(req.user.userId, req.params.id);
+
+    publishDomainUpdate(req.user.userId, {
+      domain: REALTIME_DOMAINS.AI,
+      action: REALTIME_ACTIONS.DELETED,
+      message: 'An AI simulation session was deleted from another session.',
+      metadata: {
+        simulationId: result?.deletedSimulationId || req.params.id,
+      },
+    });
+
+    if (result?.deletedMockId) {
+      publishDomainUpdate(req.user.userId, {
+        domain: REALTIME_DOMAINS.MOCKS,
+        action: REALTIME_ACTIONS.DELETED,
+        message: 'A synced mock log was removed after deleting an AI simulation.',
+        metadata: {
+          mockId: result.deletedMockId,
+        },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
+  deleteSimulationSession,
   getSimulationDetails,
   getSimulationHistoryList,
   postSimulationAnswer,

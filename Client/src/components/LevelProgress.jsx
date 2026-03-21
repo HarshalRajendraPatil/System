@@ -1,3 +1,5 @@
+import { formatNumber } from '../utils/formatting';
+
 function LevelProgress({ level, levelCap, progressPercent, xpToNextLevel, xpInCurrentLevel }) {
   return (
     <section className="panel level-panel">
@@ -12,8 +14,8 @@ function LevelProgress({ level, levelCap, progressPercent, xpToNextLevel, xpInCu
       </div>
       <div className="level-meta">
         <span>{progressPercent}% in current level</span>
-        <span>{xpInCurrentLevel} XP earned in this level</span>
-        <span>{xpToNextLevel} XP to next level</span>
+        <span>{formatNumber(xpInCurrentLevel)} XP earned in this level</span>
+        <span>{formatNumber(xpToNextLevel)} XP to next level</span>
       </div>
     </section>
   );

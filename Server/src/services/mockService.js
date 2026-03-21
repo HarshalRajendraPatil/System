@@ -1,6 +1,6 @@
 const MockInterview = require('../models/MockInterview');
 const { createHttpError } = require('../utils/httpError');
-const { ensureProfileById } = require('./rpgService');
+const { ensureProfileById, syncDailyQuestFromDomainActivity } = require('./rpgService');
 const { shiftDateKey, toDateKey } = require('../utils/date');
 const {
   INTERVIEWER_TYPE,
@@ -108,6 +108,10 @@ const createMockLog = async (userId, payload = {}) => {
     ...normalized,
   });
 
+  await syncDailyQuestFromDomainActivity(userId, {
+    field: 'mockInterview',
+  });
+
   return created.toObject();
 };
 
@@ -203,6 +207,11 @@ const updateMockLog = async (userId, mockId, payload = {}) => {
   existing.notes = normalized.notes;
 
   const updated = await existing.save();
+
+  await syncDailyQuestFromDomainActivity(userId, {
+    field: 'mockInterview',
+  });
+
   return updated.toObject();
 };
 

@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import {
   answerInterviewSimulation,
+  deleteInterviewSimulationById,
   getInterviewSimulationById,
   getInterviewSimulationHistory,
   startInterviewSimulation,
 } from '../api/interviewSimulatorApi';
+import PaginationControls from './PaginationControls';
 
 const DIFFICULTY_OPTIONS = [
   { value: 'easy', label: 'Easy' },
@@ -37,9 +39,11 @@ function InterviewSimulatorModule() {
   const [answerRichText, setAnswerRichText] = useState('');
   const [session, setSession] = useState(null);
   const [history, setHistory] = useState([]);
+  const [historyPage, setHistoryPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
+  const [deletingSimulationId, setDeletingSimulationId] = useState('');
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
 
@@ -58,12 +62,20 @@ function InterviewSimulatorModule() {
     return Boolean(asText(answerRichText) || codeAnswer.trim());
   }, [answerRichText, codeAnswer]);
 
+  const HISTORY_PAGE_SIZE = 6;
+  const totalHistoryPages = Math.max(1, Math.ceil(history.length / HISTORY_PAGE_SIZE));
+  const pagedHistory = useMemo(() => {
+    const start = (historyPage - 1) * HISTORY_PAGE_SIZE;
+    return history.slice(start, start + HISTORY_PAGE_SIZE);
+  }, [history, historyPage]);
+
   const loadHistory = async () => {
     setHistoryLoading(true);
 
     try {
       const data = await getInterviewSimulationHistory(20);
       setHistory(data || []);
+      setHistoryPage(1);
     } catch {
       // Avoid interrupting primary flow for history failures.
     } finally {
@@ -159,6 +171,33 @@ function InterviewSimulatorModule() {
       setError(requestError.message || 'Unable to load simulation details.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onDeleteSession = async (simulationId) => {
+    if (!simulationId) {
+      return;
+    }
+
+    if (!window.confirm('Delete this AI simulation session? The synced mock record will also be deleted.')) {
+      return;
+    }
+
+    setDeletingSimulationId(simulationId);
+    setError('');
+    setStatus('');
+
+    try {
+      await deleteInterviewSimulationById(simulationId);
+      if (session?.simulationId === simulationId) {
+        setSession(null);
+      }
+      setStatus('Simulation deleted successfully.');
+      await loadHistory();
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to delete simulation.');
+    } finally {
+      setDeletingSimulationId('');
     }
   };
 
@@ -375,7 +414,7 @@ function InterviewSimulatorModule() {
 
           {!historyLoading && history.length ? (
             <div className="interview-history-list">
-              {history.map((item) => (
+              {pagedHistory.map((item) => (
                 <article key={item.simulationId} className="interview-history-item">
                   <div>
                     <strong>{new Date(item.createdAt).toLocaleString()}</strong>
@@ -383,16 +422,36 @@ function InterviewSimulatorModule() {
                     <p>Score: {item.score10 || 0}/10</p>
                     <p>Weaknesses: {(item.weaknesses || []).join(', ') || 'none'}</p>
                   </div>
-                  <button
-                    type="button"
-                    className="button ghost"
-                    onClick={() => onLoadSession(item.simulationId)}
-                  >
-                    Open
-                  </button>
+                  <div className="interview-history-actions">
+                    <button
+                      type="button"
+                      className="button ghost"
+                      onClick={() => onLoadSession(item.simulationId)}
+                    >
+                      Open
+                    </button>
+                    <button
+                      type="button"
+                      className="button danger"
+                      onClick={() => onDeleteSession(item.simulationId)}
+                      disabled={deletingSimulationId === item.simulationId}
+                    >
+                      {deletingSimulationId === item.simulationId ? 'Deleting...' : 'Delete'}
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
+          ) : null}
+
+          {!historyLoading && history.length ? (
+            <PaginationControls
+              page={historyPage}
+              totalPages={totalHistoryPages}
+              totalItems={history.length}
+              pageSize={HISTORY_PAGE_SIZE}
+              onPageChange={(next) => setHistoryPage(Math.min(totalHistoryPages, Math.max(1, next)))}
+            />
           ) : null}
 
           {!historyLoading && !history.length ? (
