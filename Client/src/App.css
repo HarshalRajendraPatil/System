@@ -1,5 +1,5 @@
 .app-shell {
-  max-width: 1100px;
+  /* max-width: 1100px; */
   margin: 0 auto;
   padding: 40px 20px 64px;
   display: grid;
@@ -334,6 +334,12 @@
   opacity: 0.55;
 }
 
+.button-secondary {
+  border: 1px solid var(--panel-border);
+  background: transparent;
+  color: var(--strong-text);
+}
+
 .leaderboard {
   display: grid;
   gap: 10px;
@@ -387,6 +393,224 @@
   color: var(--muted-text);
 }
 
+.portfolio-module {
+  display: grid;
+  gap: 14px;
+}
+
+.portfolio-header {
+  background: linear-gradient(140deg, rgba(0, 188, 212, 0.12), rgba(255, 111, 0, 0.08));
+}
+
+.portfolio-identity {
+  margin: 0;
+  color: var(--muted-text);
+}
+
+.portfolio-settings {
+  display: grid;
+  gap: 12px;
+}
+
+.portfolio-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.portfolio-field-full {
+  grid-column: 1 / -1;
+}
+
+.portfolio-form-grid textarea {
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--field-bg);
+  color: var(--strong-text);
+  padding: 10px;
+  resize: vertical;
+}
+
+.portfolio-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--strong-text);
+}
+
+.portfolio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.portfolio-share-url {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+  color: var(--muted-text);
+}
+
+.portfolio-stats-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.portfolio-charts-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.portfolio-chart-card {
+  display: grid;
+  gap: 10px;
+}
+
+.portfolio-sparkline {
+  width: 100%;
+  height: 130px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: rgba(130, 148, 166, 0.08);
+}
+
+.portfolio-linechart,
+.portfolio-spider,
+.portfolio-pie {
+  width: 100%;
+  height: 140px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: rgba(130, 148, 166, 0.08);
+}
+
+.portfolio-spider-wrap {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.portfolio-chart-label {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 0.82rem;
+}
+
+.portfolio-bar-series,
+.portfolio-radar-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.portfolio-bar-row,
+.portfolio-radar-row {
+  display: grid;
+  grid-template-columns: 1.2fr 2fr auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.portfolio-bar-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(130, 148, 166, 0.3);
+  overflow: hidden;
+}
+
+.portfolio-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #00bcd4, #ff6f00);
+}
+
+.portfolio-donut-wrap {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.portfolio-donut {
+  width: 120px;
+  height: 120px;
+}
+
+.portfolio-donut-legend {
+  display: grid;
+  gap: 6px;
+}
+
+.portfolio-donut-legend-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.portfolio-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.portfolio-weakness-list {
+  display: grid;
+  gap: 8px;
+}
+
+.portfolio-weakness-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.portfolio-public-note {
+  margin: 0;
+  color: var(--muted-text);
+}
+
+.portfolio-ai-score {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+
+.portfolio-ai-score strong {
+  font-size: 1.3rem;
+  color: var(--strong-text);
+}
+
+.portfolio-ai-summary {
+  margin: 12px 0;
+  color: var(--muted-text);
+}
+
+.portfolio-ai-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.portfolio-ai-grid h4 {
+  margin: 0 0 6px;
+  color: var(--strong-text);
+}
+
+.portfolio-ai-grid ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
 @media (max-width: 940px) {
   .stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -397,6 +621,30 @@
   }
 
   .quest-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-stats-grid,
+  .portfolio-charts-grid,
+  .portfolio-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-donut-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-spider-wrap {
+    grid-template-columns: 1fr;
+  }
+
+  .portfolio-bar-row,
+  .portfolio-radar-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .portfolio-ai-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -1597,6 +1845,13 @@
 .projects-module {
   display: grid;
   gap: 14px;
+  min-width: 0;
+}
+
+.projects-toolbar,
+.projects-board-panel {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .projects-toolbar-controls {
@@ -1721,20 +1976,25 @@
 }
 
 .projects-board-grid {
-  display: grid;
+  display: flex;
   gap: 12px;
-  grid-template-columns: repeat(6, minmax(220px, 1fr));
+  min-width: 0;
+  width: 100%;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: 8px;
 }
 
 .project-column {
+  flex: 0 0 min(280px, 82vw);
   border: 1px solid var(--panel-border);
   border-radius: 12px;
   background: rgba(130, 148, 166, 0.08);
   display: grid;
   grid-template-rows: auto 1fr;
   min-height: 420px;
+  min-width: 0;
 }
 
 .project-column-header {
@@ -1771,6 +2031,8 @@
   padding: 10px;
   display: grid;
   gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .project-card-head {
@@ -1783,6 +2045,8 @@
 .project-card-head h4 {
   margin: 0;
   font-size: 0.95rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .project-priority {
@@ -1813,6 +2077,7 @@
   margin: 0;
   color: var(--muted-text);
   font-size: 0.9rem;
+  overflow-wrap: anywhere;
 }
 
 .project-card-metrics {
@@ -1834,6 +2099,8 @@
   border: 1px solid var(--panel-border);
   padding: 2px 8px;
   font-size: 0.74rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .project-card-actions {

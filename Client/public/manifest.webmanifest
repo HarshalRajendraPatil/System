@@ -1,0 +1,17 @@
+{
+  "name": "GrindForge Portfolio",
+  "short_name": "GrindForge",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#081a2f",
+  "theme_color": "#00bcd4",
+  "description": "Gamified placement prep with portfolio-ready progress insights.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

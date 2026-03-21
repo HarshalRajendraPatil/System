@@ -349,9 +349,9 @@ const buildPrompt = (snapshot, options = {}) => {
   };
 };
 
-const callGrokJson = async (snapshot, options = {}) => {
-  if (env.aiCoachFallbackOnly || !env.grokApiKey) {
-    throw createHttpError(503, 'Grok AI is not configured. Falling back to local coach logic.');
+const callGeminiJson = async (snapshot, options = {}) => {
+  if (env.aiCoachFallbackOnly || !env.geminiApiKey) {
+    throw createHttpError(503, 'Gemini AI is not configured. Falling back to local coach logic.');
   }
 
   const prompt = buildPrompt(snapshot, options);
@@ -360,25 +360,33 @@ const callGrokJson = async (snapshot, options = {}) => {
   const timeoutController = new AbortController();
   const timeoutHandle = setTimeout(() => {
     timeoutController.abort();
-  }, env.grokTimeoutMs);
+  }, env.geminiTimeoutMs);
 
-  const response = await fetch(`${env.grokBaseUrl}/chat/completions`, {
+  const response = await fetch(
+    `${env.geminiBaseUrl}/models/${env.geminiModel}:generateContent?key=${encodeURIComponent(env.geminiApiKey)}`,
+    {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${env.grokApiKey}`,
     },
     body: JSON.stringify({
-      model: env.grokModel,
-      temperature: clamp(toSafeNumber(options.temperature, 0.35), 0, 1.2),
-      max_tokens: clamp(toSafeNumber(options.maxTokens, 1400), 350, 1800),
-      messages: [
-        { role: 'system', content: prompt.system },
-        { role: 'user', content: prompt.user },
+      systemInstruction: {
+        parts: [{ text: prompt.system }],
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: prompt.user }],
+        },
       ],
+      generationConfig: {
+        temperature: clamp(toSafeNumber(options.temperature, 0.35), 0, 1.2),
+        maxOutputTokens: clamp(toSafeNumber(options.maxTokens, 1400), 350, 1800),
+      },
     }),
     signal: timeoutController.signal,
-  }).finally(() => {
+    },
+  ).finally(() => {
     clearTimeout(timeoutHandle);
   });
 
@@ -386,26 +394,28 @@ const callGrokJson = async (snapshot, options = {}) => {
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const message = payload?.error?.message || `Grok request failed with status ${response.status}`;
+    const message = payload?.error?.message || `Gemini request failed with status ${response.status}`;
     throw createHttpError(response.status || 502, message);
   }
 
-  const content = payload?.choices?.[0]?.message?.content || '';
+  const content = (payload?.candidates?.[0]?.content?.parts || [])
+    .map((part) => part?.text || '')
+    .join('\n');
   const parsed = extractJsonObject(content);
 
   if (!parsed) {
-    throw createHttpError(502, 'Grok response could not be parsed as JSON');
+    throw createHttpError(502, 'Gemini response could not be parsed as JSON');
   }
 
   return {
     parsed,
-    provider: 'grok',
-    model: payload?.model || env.grokModel,
+    provider: 'gemini',
+    model: payload?.modelVersion || env.geminiModel,
     latencyMs,
     usage: {
-      promptTokens: toSafeNumber(payload?.usage?.prompt_tokens, 0),
-      completionTokens: toSafeNumber(payload?.usage?.completion_tokens, 0),
-      totalTokens: toSafeNumber(payload?.usage?.total_tokens, 0),
+      promptTokens: toSafeNumber(payload?.usageMetadata?.promptTokenCount, 0),
+      completionTokens: toSafeNumber(payload?.usageMetadata?.candidatesTokenCount, 0),
+      totalTokens: toSafeNumber(payload?.usageMetadata?.totalTokenCount, 0),
     },
   };
 };
@@ -469,13 +479,13 @@ const generateCoachReport = async (userId, options = {}) => {
 
   let providerResult;
   try {
-    const grok = await callGrokJson(snapshot, options);
+    const gemini = await callGeminiJson(snapshot, options);
     providerResult = {
-      provider: grok.provider,
-      model: grok.model,
-      latencyMs: grok.latencyMs,
-      usage: grok.usage,
-      report: sanitizeCoachReport(grok.parsed, snapshot, options),
+      provider: gemini.provider,
+      model: gemini.model,
+      latencyMs: gemini.latencyMs,
+      usage: gemini.usage,
+      report: sanitizeCoachReport(gemini.parsed, snapshot, options),
     };
   } catch {
     providerResult = {

@@ -34,7 +34,7 @@ const aiCoachInsightSchema = new mongoose.Schema(
     },
     provider: {
       type: String,
-      enum: ['grok', 'fallback'],
+      enum: ['gemini', 'fallback'],
       default: 'fallback',
       index: true,
     },

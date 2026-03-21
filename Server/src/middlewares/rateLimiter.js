@@ -50,10 +50,21 @@ const aiRateLimiter = rateLimit({
   },
 });
 
+const publicReadRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: 'Public endpoint request limit reached. Please retry shortly.',
+  },
+});
+
 module.exports = {
   aiRateLimiter,
   apiRateLimiter,
   authRateLimiter,
   loginRateLimiter,
+  publicReadRateLimiter,
   writeRateLimiter,
 };

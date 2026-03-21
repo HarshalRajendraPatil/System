@@ -16,6 +16,7 @@ import ProjectsModule from './components/ProjectsModule';
 import MocksModule from './components/MocksModule';
 import BehavioralModule from './components/BehavioralModule';
 import AICoachModule from './components/AICoachModule';
+import PortfolioModule from './components/PortfolioModule';
 import { formatDateLabel, calculateQuestXpPreview } from './utils/rpgMath';
 
 const buildQuestState = (quest) => ({
@@ -56,6 +57,10 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
   const realtimeRefreshTimerRef = useRef(null);
+  const publicPortfolioSlug = useMemo(
+    () => new URLSearchParams(window.location.search).get('portfolio') || '',
+    [],
+  );
 
   const questXpPreview = useMemo(() => calculateQuestXpPreview(quest), [quest]);
 
@@ -117,6 +122,13 @@ function App() {
 
   useEffect(() => {
     const bootstrap = async () => {
+      if (publicPortfolioSlug) {
+        setAuthChecking(false);
+        setCurrentUser(null);
+        setLoading(false);
+        return;
+      }
+
       setAuthChecking(true);
       setError('');
 
@@ -134,7 +146,7 @@ function App() {
     };
 
     bootstrap();
-  }, [hydrateData]);
+  }, [hydrateData, publicPortfolioSlug]);
 
   useEffect(
     () => () => {
@@ -237,6 +249,14 @@ function App() {
     return (
       <main className="app-shell">
         <p className="loading">Verifying secure session...</p>
+      </main>
+    );
+  }
+
+  if (publicPortfolioSlug) {
+    return (
+      <main className="app-shell">
+        <PortfolioModule publicSlug={publicPortfolioSlug} />
       </main>
     );
   }
@@ -379,6 +399,13 @@ function App() {
         >
           AI Coach
         </button>
+        <button
+          type="button"
+          className={`nav-tab ${activeTab === 'portfolio' ? 'active' : ''}`}
+          onClick={() => setActiveTab('portfolio')}
+        >
+          Portfolio
+        </button>
       </nav>
 
       {activeTab === 'dashboard' ? (
@@ -466,6 +493,8 @@ function App() {
       {activeTab === 'behavioral' ? <BehavioralModule /> : null}
 
       {activeTab === 'ai' ? <AICoachModule /> : null}
+
+      {activeTab === 'portfolio' ? <PortfolioModule /> : null}
     </main>
   );
 }

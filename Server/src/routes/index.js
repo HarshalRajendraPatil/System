@@ -8,6 +8,7 @@ const projectRoutes = require('./projectRoutes');
 const mockRoutes = require('./mockRoutes');
 const behavioralRoutes = require('./behavioralRoutes');
 const aiRoutes = require('./aiRoutes');
+const portfolioRoutes = require('./portfolioRoutes');
 
 const routes = express.Router();
 
@@ -27,5 +28,6 @@ routes.use('/projects', authenticateRequest, projectRoutes);
 routes.use('/mocks', authenticateRequest, mockRoutes);
 routes.use('/behavioral', authenticateRequest, behavioralRoutes);
 routes.use('/ai', authenticateRequest, aiRoutes);
+routes.use('/portfolio', portfolioRoutes);
 
 module.exports = routes;
