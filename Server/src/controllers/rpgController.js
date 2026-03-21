@@ -1,4 +1,5 @@
 const {
+  getAchievementsData,
   getDashboardData,
   getQuestHistory,
   upsertDailyQuest,
@@ -73,7 +74,21 @@ const getDailyQuestHistory = async (req, res, next) => {
   }
 };
 
+const getAchievements = async (req, res, next) => {
+  try {
+    const achievements = await getAchievementsData(req.user.userId);
+
+    return res.status(200).json({
+      success: true,
+      data: achievements,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
+  getAchievements,
   getDashboard,
   getDailyQuestHistory,
   updateDailyQuest,

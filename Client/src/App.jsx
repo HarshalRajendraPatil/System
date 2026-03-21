@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
+import { toast } from 'sonner';
 import './App.css';
 import { getCurrentUser, logoutUser } from './api/authApi';
 import { getDailyQuestHistory, getDashboard, updateDailyQuest } from './api/rpgApi';
@@ -17,6 +18,7 @@ import MocksModule from './components/MocksModule';
 import BehavioralModule from './components/BehavioralModule';
 import AICoachModule from './components/AICoachModule';
 import PortfolioModule from './components/PortfolioModule';
+import AchievementsPanel from './components/AchievementsPanel';
 import InterviewSimulatorModule from './components/InterviewSimulatorModule';
 import { formatDateLabel, calculateQuestXpPreview } from './utils/rpgMath';
 
@@ -50,6 +52,8 @@ function App() {
   const [dashboard, setDashboard] = useState(null);
   const [history, setHistory] = useState([]);
   const [quest, setQuest] = useState(buildQuestState());
+  const [achievements, setAchievements] = useState(null);
+  const [recentUnlockedBadgeIds, setRecentUnlockedBadgeIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -58,6 +62,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
   const realtimeRefreshTimerRef = useRef(null);
+  const unlockAnimationTimerRef = useRef(null);
   const publicPortfolioSlug = useMemo(
     () => new URLSearchParams(window.location.search).get('portfolio') || '',
     [],
@@ -65,11 +70,40 @@ function App() {
 
   const questXpPreview = useMemo(() => calculateQuestXpPreview(quest), [quest]);
 
+  const announceUnlockedBadges = useCallback((newlyUnlocked = []) => {
+    if (!Array.isArray(newlyUnlocked) || !newlyUnlocked.length) {
+      return;
+    }
+
+    const unlockedIds = newlyUnlocked.map((badge) => badge.badgeId).filter(Boolean);
+    if (!unlockedIds.length) {
+      return;
+    }
+
+    setRecentUnlockedBadgeIds(unlockedIds);
+
+    newlyUnlocked.forEach((badge) => {
+      toast.success(`Badge unlocked: ${badge.title}`, {
+        description: badge.description,
+      });
+    });
+
+    if (unlockAnimationTimerRef.current) {
+      clearTimeout(unlockAnimationTimerRef.current);
+    }
+
+    unlockAnimationTimerRef.current = setTimeout(() => {
+      setRecentUnlockedBadgeIds([]);
+    }, 5000);
+  }, []);
+
   const applyDashboardBundle = useCallback((dashboardData, historyData) => {
     setDashboard(dashboardData);
     setHistory((historyData || []).slice(0, 7));
     setQuest(buildQuestState(dashboardData?.todayQuest));
-  }, []);
+    setAchievements(dashboardData?.achievements || null);
+    announceUnlockedBadges(dashboardData?.achievements?.newlyUnlocked || []);
+  }, [announceUnlockedBadges]);
 
   const fetchDashboardBundle = useCallback(
     () =>
@@ -154,6 +188,10 @@ function App() {
       if (realtimeRefreshTimerRef.current) {
         clearTimeout(realtimeRefreshTimerRef.current);
       }
+
+      if (unlockAnimationTimerRef.current) {
+        clearTimeout(unlockAnimationTimerRef.current);
+      }
     },
     [],
   );
@@ -174,6 +212,8 @@ function App() {
     setDashboard(null);
     setHistory([]);
     setQuest(buildQuestState());
+    setAchievements(null);
+    setRecentUnlockedBadgeIds([]);
     setError('');
     setStatusMessage('');
     setActiveTab('dashboard');
@@ -181,6 +221,10 @@ function App() {
 
     if (realtimeRefreshTimerRef.current) {
       clearTimeout(realtimeRefreshTimerRef.current);
+    }
+
+    if (unlockAnimationTimerRef.current) {
+      clearTimeout(unlockAnimationTimerRef.current);
     }
   };
 
@@ -229,6 +273,8 @@ function App() {
 
       setDashboard(nextDashboard);
       setQuest(buildQuestState(response.quest));
+      setAchievements(response.achievements || null);
+      announceUnlockedBadges(response?.achievements?.newlyUnlocked || []);
 
       const historyData = await getDailyQuestHistory();
       setHistory(historyData.slice(0, 7));
@@ -443,6 +489,11 @@ function App() {
               helper="Global mode ready"
             />
           </section>
+
+          <AchievementsPanel
+            achievements={achievements}
+            highlightedBadgeIds={recentUnlockedBadgeIds}
+          />
 
           <LevelProgress
             level={dashboard.profile.level}

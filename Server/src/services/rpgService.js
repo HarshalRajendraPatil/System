@@ -7,6 +7,7 @@ const {
 } = require('../constants/rpg');
 const DailyQuest = require('../models/DailyQuest');
 const UserProfile = require('../models/UserProfile');
+const { evaluateAndFetchAchievements } = require('./achievementService');
 const { getDayDifference, shiftDateKey, toDateKey } = require('../utils/date');
 const { createHttpError } = require('../utils/httpError');
 
@@ -210,6 +211,9 @@ const recalculateProfileProgress = async (profileId) => {
   return {
     profile: updatedProfile,
     levelInfo,
+    achievements: await evaluateAndFetchAchievements(updatedProfile._id, {
+      profile: updatedProfile,
+    }),
   };
 };
 
@@ -225,7 +229,11 @@ const getLeaderboard = async (limit = 10) => {
 
 const getDashboardData = async (userId, dateKey) => {
   const profile = await ensureProfileById(userId);
-  const { profile: refreshedProfile, levelInfo } = await recalculateProfileProgress(profile._id);
+  const {
+    profile: refreshedProfile,
+    levelInfo,
+    achievements,
+  } = await recalculateProfileProgress(profile._id);
   const effectiveDateKey = dateKey ? toDateKey(dateKey) : toDateKey(new Date());
 
   const todayQuest = await DailyQuest.findOne({
@@ -243,6 +251,7 @@ const getDashboardData = async (userId, dateKey) => {
     rank,
     todayQuest: todayQuest || getDefaultQuestResponse(effectiveDateKey),
     leaderboard,
+    achievements,
   };
 };
 
@@ -279,7 +288,11 @@ const upsertDailyQuest = async (userId, payload) => {
     },
   ).lean();
 
-  const { profile: refreshedProfile, levelInfo } = await recalculateProfileProgress(profile._id);
+  const {
+    profile: refreshedProfile,
+    levelInfo,
+    achievements,
+  } = await recalculateProfileProgress(profile._id);
   const leaderboard = await getLeaderboard();
   const rank =
     (await UserProfile.countDocuments({ isActive: true, totalXp: { $gt: refreshedProfile.totalXp } })) + 1;
@@ -290,6 +303,7 @@ const upsertDailyQuest = async (userId, payload) => {
     level: levelInfo,
     rank,
     leaderboard,
+    achievements,
     leveledUp: refreshedProfile.level > previousLevel,
   };
 };
@@ -344,7 +358,11 @@ const rewardSimulationQuestCompletion = async (userId, options = {}) => {
     },
   ).lean();
 
-  const { profile: refreshedProfile, levelInfo } = await recalculateProfileProgress(profile._id);
+  const {
+    profile: refreshedProfile,
+    levelInfo,
+    achievements,
+  } = await recalculateProfileProgress(profile._id);
   const leaderboard = await getLeaderboard();
   const rank =
     (await UserProfile.countDocuments({ isActive: true, totalXp: { $gt: refreshedProfile.totalXp } })) + 1;
@@ -355,8 +373,14 @@ const rewardSimulationQuestCompletion = async (userId, options = {}) => {
     level: levelInfo,
     rank,
     leaderboard,
+    achievements,
     leveledUp: refreshedProfile.level > previousLevel,
   };
+};
+
+const getAchievementsData = async (userId) => {
+  await ensureProfileById(userId);
+  return evaluateAndFetchAchievements(userId, {});
 };
 
 const getQuestHistory = async (userId, query = {}) => {
@@ -390,6 +414,7 @@ module.exports = {
   calculateDailyQuestXp,
   ensureProfileById,
   getDashboardData,
+  getAchievementsData,
   getLeaderboard,
   getQuestHistory,
   isCompletedQuestDay,
