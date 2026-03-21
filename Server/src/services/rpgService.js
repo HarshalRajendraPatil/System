@@ -153,6 +153,8 @@ const getDefaultQuestResponse = (dateKey) => ({
   dsaDifficulty: DSA_DIFFICULTY.EASY,
   hoursLogged: 0,
   xpEarned: 0,
+  bonusXp: 0,
+  simulationCompletions: 0,
   completed: false,
 });
 
@@ -248,7 +250,12 @@ const upsertDailyQuest = async (userId, payload) => {
   const profile = await ensureProfileById(userId);
   const previousLevel = profile.level;
   const normalizedQuest = normalizeQuestPayload(payload);
-  const xpEarned = calculateDailyQuestXp(normalizedQuest);
+  const existingQuest = await DailyQuest.findOne({
+    userId: profile._id,
+    dateKey: normalizedQuest.dateKey,
+  }).lean();
+  const bonusXp = Number(existingQuest?.bonusXp) || 0;
+  const xpEarned = calculateDailyQuestXp(normalizedQuest) + bonusXp;
   const completed = isCompletedQuestDay(normalizedQuest);
 
   const updatedQuest = await DailyQuest.findOneAndUpdate(
@@ -260,6 +267,73 @@ const upsertDailyQuest = async (userId, payload) => {
       $set: {
         ...normalizedQuest,
         xpEarned,
+        bonusXp,
+        simulationCompletions: Number(existingQuest?.simulationCompletions) || 0,
+        completed,
+      },
+    },
+    {
+      upsert: true,
+      new: true,
+      setDefaultsOnInsert: true,
+    },
+  ).lean();
+
+  const { profile: refreshedProfile, levelInfo } = await recalculateProfileProgress(profile._id);
+  const leaderboard = await getLeaderboard();
+  const rank =
+    (await UserProfile.countDocuments({ isActive: true, totalXp: { $gt: refreshedProfile.totalXp } })) + 1;
+
+  return {
+    quest: updatedQuest,
+    profile: refreshedProfile,
+    level: levelInfo,
+    rank,
+    leaderboard,
+    leveledUp: refreshedProfile.level > previousLevel,
+  };
+};
+
+const rewardSimulationQuestCompletion = async (userId, options = {}) => {
+  const profile = await ensureProfileById(userId);
+  const previousLevel = profile.level;
+
+  const xpBonus = Math.max(0, Number(options.xpBonus) || 50);
+  const todayDateKey = toDateKey(new Date());
+
+  const existingQuest = await DailyQuest.findOne({
+    userId: profile._id,
+    dateKey: todayDateKey,
+  }).lean();
+
+  const normalizedQuest = {
+    dateKey: todayDateKey,
+    dsa: Boolean(existingQuest?.dsa),
+    lldHld: Boolean(existingQuest?.lldHld),
+    projectWork: Boolean(existingQuest?.projectWork),
+    theoryRevision: Boolean(existingQuest?.theoryRevision),
+    mockInterview: true,
+    behavioralStories: Boolean(existingQuest?.behavioralStories),
+    dsaDifficulty: existingQuest?.dsaDifficulty || DSA_DIFFICULTY.EASY,
+    hoursLogged: clampHours(existingQuest?.hoursLogged),
+  };
+
+  const nextBonusXp = (Number(existingQuest?.bonusXp) || 0) + xpBonus;
+  const simulationCompletions = (Number(existingQuest?.simulationCompletions) || 0) + 1;
+  const xpEarned = calculateDailyQuestXp(normalizedQuest) + nextBonusXp;
+  const completed = isCompletedQuestDay(normalizedQuest);
+
+  const updatedQuest = await DailyQuest.findOneAndUpdate(
+    {
+      userId: profile._id,
+      dateKey: todayDateKey,
+    },
+    {
+      $set: {
+        ...normalizedQuest,
+        xpEarned,
+        bonusXp: nextBonusXp,
+        simulationCompletions,
         completed,
       },
     },
@@ -321,5 +395,6 @@ module.exports = {
   isCompletedQuestDay,
   normalizeQuestPayload,
   recalculateProfileProgress,
+  rewardSimulationQuestCompletion,
   upsertDailyQuest,
 };

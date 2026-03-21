@@ -1,0 +1,43 @@
+const SIM_DIFFICULTY = {
+  EASY: 'easy',
+  MEDIUM: 'medium',
+  HARD: 'hard',
+};
+
+const SIM_ROUND_TYPE = {
+  CODING: 'coding',
+  LLD: 'lld',
+  BEHAVIORAL: 'behavioral',
+  MIXED: 'mixed',
+};
+
+const SIM_STATUS = {
+  ACTIVE: 'active',
+  COMPLETED: 'completed',
+};
+
+const SIM_DIFFICULTY_ORDER = [
+  SIM_DIFFICULTY.EASY,
+  SIM_DIFFICULTY.MEDIUM,
+  SIM_DIFFICULTY.HARD,
+];
+
+const SIM_ROUND_TYPE_ORDER = [
+  SIM_ROUND_TYPE.CODING,
+  SIM_ROUND_TYPE.LLD,
+  SIM_ROUND_TYPE.BEHAVIORAL,
+  SIM_ROUND_TYPE.MIXED,
+];
+
+const SIM_TOTAL_QUESTIONS = 4;
+const SIM_XP_REWARD = 50;
+
+module.exports = {
+  SIM_DIFFICULTY,
+  SIM_DIFFICULTY_ORDER,
+  SIM_ROUND_TYPE,
+  SIM_ROUND_TYPE_ORDER,
+  SIM_STATUS,
+  SIM_TOTAL_QUESTIONS,
+  SIM_XP_REWARD,
+};

@@ -17,6 +17,7 @@ import MocksModule from './components/MocksModule';
 import BehavioralModule from './components/BehavioralModule';
 import AICoachModule from './components/AICoachModule';
 import PortfolioModule from './components/PortfolioModule';
+import InterviewSimulatorModule from './components/InterviewSimulatorModule';
 import { formatDateLabel, calculateQuestXpPreview } from './utils/rpgMath';
 
 const buildQuestState = (quest) => ({
@@ -401,6 +402,13 @@ function App() {
         </button>
         <button
           type="button"
+          className={`nav-tab ${activeTab === 'simulator' ? 'active' : ''}`}
+          onClick={() => setActiveTab('simulator')}
+        >
+          AI Simulator
+        </button>
+        <button
+          type="button"
           className={`nav-tab ${activeTab === 'portfolio' ? 'active' : ''}`}
           onClick={() => setActiveTab('portfolio')}
         >
@@ -493,6 +501,8 @@ function App() {
       {activeTab === 'behavioral' ? <BehavioralModule /> : null}
 
       {activeTab === 'ai' ? <AICoachModule /> : null}
+
+      {activeTab === 'simulator' ? <InterviewSimulatorModule /> : null}
 
       {activeTab === 'portfolio' ? <PortfolioModule /> : null}
     </main>

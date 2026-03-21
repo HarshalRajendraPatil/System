@@ -53,6 +53,16 @@ const dailyQuestSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    bonusXp: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    simulationCompletions: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     completed: {
       type: Boolean,
       default: false,
