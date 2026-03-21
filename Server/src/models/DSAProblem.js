@@ -53,6 +53,11 @@ const dsaProblemSchema = new mongoose.Schema(
         trim: true,
       },
     ],
+    sourceKey: {
+      type: String,
+      trim: true,
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -62,5 +67,18 @@ const dsaProblemSchema = new mongoose.Schema(
 dsaProblemSchema.index({ userId: 1, dateCompletedKey: -1 });
 dsaProblemSchema.index({ userId: 1, difficulty: 1 });
 dsaProblemSchema.index({ userId: 1, platform: 1 });
+dsaProblemSchema.index(
+  { userId: 1, sourceKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      sourceKey: {
+        $exists: true,
+        $type: 'string',
+        $ne: '',
+      },
+    },
+  },
+);
 
 module.exports = mongoose.model('DSAProblem', dsaProblemSchema);

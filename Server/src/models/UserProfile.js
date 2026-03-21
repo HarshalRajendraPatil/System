@@ -23,6 +23,17 @@ const userProfileSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
+    leetcodeUsername: {
+      type: String,
+      trim: true,
+      default: '',
+      index: true,
+    },
+    leetcodeProfileUrl: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     passwordHash: {
       type: String,
       select: false,

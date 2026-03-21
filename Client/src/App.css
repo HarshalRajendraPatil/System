@@ -215,6 +215,203 @@
   }
 }
 
+/* Analytics Module */
+
+.analytics-module {
+  display: grid;
+  gap: 14px;
+}
+
+.analytics-settings-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.analytics-field-grow {
+  min-width: 0;
+}
+
+.analytics-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.analytics-snapshot-item {
+  border: 1px solid rgba(130, 148, 166, 0.18);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(18, 24, 34, 0.55);
+  display: grid;
+  gap: 5px;
+}
+
+.analytics-snapshot-item span {
+  color: var(--muted-text);
+  font-size: 12px;
+}
+
+.analytics-snapshot-item strong {
+  font-size: 1.2rem;
+  color: var(--text-color);
+}
+
+.analytics-recent-list {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.analytics-recent-list a {
+  border: 1px solid rgba(130, 148, 166, 0.18);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--text-color);
+  background: rgba(18, 24, 34, 0.35);
+}
+
+.analytics-recent-list a small {
+  color: var(--muted-text);
+}
+
+.analytics-heatmap-shell {
+  --heat-cell-size: clamp(13px, 1.15vw, 18px);
+  --heat-gap: 4px;
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
+.analytics-heatmap-month-row {
+  margin-left: 34px;
+  display: grid;
+  grid-template-columns: repeat(53, minmax(var(--heat-cell-size), 1fr));
+  gap: var(--heat-gap);
+  color: var(--muted-text);
+  font-size: 11px;
+  width: 100%;
+}
+
+.analytics-heatmap-body {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.analytics-heatmap-day-labels {
+  width: 26px;
+  display: grid;
+  grid-template-rows: repeat(7, var(--heat-cell-size));
+  gap: var(--heat-gap);
+  color: var(--muted-text);
+  font-size: 10px;
+}
+
+.analytics-heatmap-day-labels span:nth-child(1) {
+  grid-row: 2;
+}
+
+.analytics-heatmap-day-labels span:nth-child(2) {
+  grid-row: 4;
+}
+
+.analytics-heatmap-day-labels span:nth-child(3) {
+  grid-row: 6;
+}
+
+.analytics-heatmap-weeks {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(53, minmax(var(--heat-cell-size), 1fr));
+  gap: var(--heat-gap);
+  width: 100%;
+}
+
+.analytics-heatmap-week-col {
+  display: grid;
+  grid-template-rows: repeat(7, var(--heat-cell-size));
+  gap: var(--heat-gap);
+}
+
+.analytics-heatmap-cell {
+  width: 100%;
+  height: var(--heat-cell-size);
+  border-radius: 3px;
+  border: 1px solid rgba(130, 148, 166, 0.12);
+}
+
+.analytics-heatmap-cell.is-future {
+  opacity: 0.35;
+}
+
+.analytics-charts-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.analytics-chart-full {
+  grid-column: span 2;
+}
+
+.analytics-chart-wrap {
+  width: 100%;
+  min-height: 260px;
+}
+
+.analytics-insight-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.analytics-insight-list li {
+  line-height: 1.4;
+}
+
+@media (max-width: 980px) {
+  .analytics-snapshot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .analytics-charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-chart-full {
+    grid-column: span 1;
+  }
+
+}
+
+@media (max-width: 680px) {
+  .analytics-snapshot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-settings-row {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-heatmap-month-row {
+    margin-left: 30px;
+  }
+
+  .analytics-heatmap-body {
+    width: 100%;
+  }
+}
+
 .hero {
   border: 1px solid var(--panel-border);
   border-radius: 20px;

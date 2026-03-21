@@ -1,8 +1,12 @@
 const {
   createDSAProblem,
   deleteDSAProblem,
+  getDSAAnalytics,
+  getLeetCodeSettings,
   getDSAProblems,
   getDSAStats,
+  syncLeetCodeSubmissions,
+  updateLeetCodeSettings,
   updateDSAProblem,
 } = require('../services/dsaService');
 const {
@@ -152,10 +156,88 @@ const deleteProblem = async (req, res, next) => {
   }
 };
 
+const getLeetCodeSyncSettings = async (req, res, next) => {
+  try {
+    const data = await getLeetCodeSettings(req.user.userId);
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const putLeetCodeSyncSettings = async (req, res, next) => {
+  try {
+    const data = await updateLeetCodeSettings(req.user.userId, req.body || {});
+
+    return res.status(200).json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const postLeetCodeSync = async (req, res, next) => {
+  try {
+    const result = await syncLeetCodeSubmissions(req.user.userId);
+
+    publishUserProgressUpdate(req.user.userId, {
+      profile: result.profile,
+      level: result.level,
+      leaderboard: result.leaderboard,
+      achievements: result.achievements,
+    });
+
+    emitLeaderboardEvent({
+      leaderboard: result.leaderboard,
+      reason: 'leetcode_sync',
+    });
+
+    publishDomainUpdate(req.user.userId, {
+      domain: REALTIME_DOMAINS.DSA,
+      action: REALTIME_ACTIONS.GENERATED,
+      message: `LeetCode sync imported ${result.importedCount} solves from another session.`,
+      metadata: {
+        importedCount: result.importedCount,
+        fetchedCount: result.fetchedCount,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+const getAnalytics = async (req, res, next) => {
+  try {
+    const analytics = await getDSAAnalytics(req.user.userId);
+
+    return res.status(200).json({
+      success: true,
+      data: analytics,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   deleteProblem,
+  getAnalytics,
+  getLeetCodeSyncSettings,
   getProblemsList,
   getProblemStats,
+  postLeetCodeSync,
   postDSAProblem,
+  putLeetCodeSyncSettings,
   putDSAProblem,
 };

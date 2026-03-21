@@ -12,6 +12,7 @@ import Leaderboard from './components/Leaderboard';
 import LevelProgress from './components/LevelProgress';
 import StatCard from './components/StatCard';
 import DSAModule from './components/DSAModule';
+import AnalyticsModule from './components/AnalyticsModule';
 import LLDHLDVault from './components/LLDHLDVault';
 import ProjectsModule from './components/ProjectsModule';
 import MocksModule from './components/MocksModule';
@@ -48,6 +49,14 @@ const launchLevelUpConfetti = () => {
   });
 };
 
+const getInitialActiveTab = () => {
+  if (window.location.pathname === '/analytics') {
+    return 'analytics';
+  }
+
+  return 'dashboard';
+};
+
 function App() {
   const [dashboard, setDashboard] = useState(null);
   const [history, setHistory] = useState([]);
@@ -58,7 +67,7 @@ function App() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(getInitialActiveTab);
   const [currentUser, setCurrentUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
   const realtimeRefreshTimerRef = useRef(null);
@@ -195,6 +204,17 @@ function App() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (publicPortfolioSlug || !currentUser) {
+      return;
+    }
+
+    const nextPath = activeTab === 'analytics' ? '/analytics' : '/';
+    if (window.location.pathname !== nextPath) {
+      window.history.replaceState({}, '', nextPath);
+    }
+  }, [activeTab, currentUser, publicPortfolioSlug]);
 
   const onAuthenticated = async (user) => {
     setCurrentUser(user);
@@ -413,6 +433,13 @@ function App() {
         </button>
         <button
           type="button"
+          className={`nav-tab ${activeTab === 'analytics' ? 'active' : ''}`}
+          onClick={() => setActiveTab('analytics')}
+        >
+          Analytics
+        </button>
+        <button
+          type="button"
           className={`nav-tab ${activeTab === 'lld-hld' ? 'active' : ''}`}
           onClick={() => setActiveTab('lld-hld')}
         >
@@ -542,6 +569,8 @@ function App() {
       ) : null}
 
       {activeTab === 'dsa' ? <DSAModule /> : null}
+
+      {activeTab === 'analytics' ? <AnalyticsModule /> : null}
 
       {activeTab === 'lld-hld' ? <LLDHLDVault /> : null}
 
