@@ -20,6 +20,8 @@ const postCoachReport = async (req, res, next) => {
       maxTokens: req.body?.maxTokens,
     });
 
+    console.log("Report insight generated:", report);
+
     publishDomainUpdate(req.user.userId, {
       domain: REALTIME_DOMAINS.AI,
       action: REALTIME_ACTIONS.GENERATED,

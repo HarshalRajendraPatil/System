@@ -27,7 +27,7 @@ export const formatNumber = (num, decimals = 1) => {
   }
 
   if (absNum >= 1_000) {
-    return toCompact(num / 1_000, 'K');
+    return toCompact(num / 1_000, 'k');
   }
 
   return num.toString();

@@ -104,7 +104,7 @@ const getAdminOverview = async ({ leaderboardLimit = 8, windowDays = 7 } = {}) =
         },
       },
     ]),
-    UserProfile.find({ isActive: true })
+    UserProfile.find({ isActive: true, role: { $ne: USER_ROLES.ADMIN } })
       .sort({ totalXp: -1, level: -1, updatedAt: -1 })
       .limit(clampLimit(leaderboardLimit, 8))
       .select('username displayName role totalXp level currentStreak')

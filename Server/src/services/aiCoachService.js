@@ -19,7 +19,32 @@ const {
   AI_TONE_ORDER,
 } = require('../constants/ai');
 
+let geminiClientPromise = null;
+
+// const GEMINI_MODEL_FALLBACK_ORDER = [
+//   'gemini-2.5-flash',
+//   'gemini-2.0-flash',
+//   'gemini-1.5-flash',
+// ];
+
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const withTimeout = async (promise, timeoutMs, label = 'Operation') =>
+  new Promise((resolve, reject) => {
+    const timeoutHandle = setTimeout(() => {
+      reject(createHttpError(504, `${label} timed out`));
+    }, timeoutMs);
+
+    promise
+      .then((result) => {
+        clearTimeout(timeoutHandle);
+        resolve(result);
+      })
+      .catch((error) => {
+        clearTimeout(timeoutHandle);
+        reject(error);
+      });
+  });
 
 const toSafeNumber = (value, fallback = 0) => {
   const parsed = Number(value);
@@ -29,6 +54,16 @@ const toSafeNumber = (value, fallback = 0) => {
 const asString = (value, fallback = '') => {
   const next = String(value || '').trim();
   return next || fallback;
+};
+
+const getGeminiClient = async () => {
+  if (!geminiClientPromise) {
+    geminiClientPromise = import('@google/genai').then(({ GoogleGenAI }) =>
+      new GoogleGenAI({ apiKey: env.geminiApiKey })
+    );
+  }
+
+  return geminiClientPromise;
 };
 
 const sanitizeTextArray = (value, maxItems = 8) => {
@@ -326,6 +361,17 @@ const buildFallbackReport = (snapshot, options = {}) => {
 
 const buildPrompt = (snapshot, options = {}) => {
   const tone = AI_TONE_ORDER.includes(options.tone) ? options.tone : AI_TONE.BALANCED;
+  const type = options.type || AI_COACH_TYPE.FULL_REPORT;
+  const isMotivationOnly = type === AI_COACH_TYPE.MOTIVATION;
+
+  const schemaDescription = isMotivationOnly
+    ? 'motivation (string), focusTheme (string).'
+    : [
+      'motivation (string), focusTheme (string), suggestions (array of {title, why, actions, priority}),',
+      'weaknessAnalysis (array of {area, evidence, impact, recommendation}),',
+      'streakProjection ({currentStreak, projectedBestCase, projectedLikely, projectedRiskCase, confidence, rationale}),',
+      'weeklyPlan (array of 7 items {day, focus, task}), riskAlerts (array of strings).',
+    ].join(' ');
 
   return {
     system: [
@@ -334,19 +380,33 @@ const buildPrompt = (snapshot, options = {}) => {
       'Return strict JSON without markdown fences.',
       'Be specific, measurable, and realistic for a 7-day horizon.',
       'JSON schema keys required:',
-      'motivation (string), focusTheme (string), suggestions (array of {title, why, actions, priority}),',
-      'weaknessAnalysis (array of {area, evidence, impact, recommendation}),',
-      'streakProjection ({currentStreak, projectedBestCase, projectedLikely, projectedRiskCase, confidence, rationale}),',
-      'weeklyPlan (array of 7 items {day, focus, task}), riskAlerts (array of strings).',
+      schemaDescription,
       `Tone: ${tone}.`,
     ].join(' '),
     user: JSON.stringify({
-      requestType: options.type || AI_COACH_TYPE.FULL_REPORT,
+      requestType: type,
       focusArea: asString(options.focusArea, ''),
       customPrompt: asString(options.customPrompt, ''),
       snapshot,
     }),
   };
+};
+
+// const buildGeminiModelCandidates = () => {
+//   const configured = asString(env.geminiModel, '');
+//   const ordered = configured
+//     ? [configured, ...GEMINI_MODEL_FALLBACK_ORDER]
+//     : [...GEMINI_MODEL_FALLBACK_ORDER];
+
+//   return [...new Set(ordered)];
+// };
+
+const resolveGeminiText = async (response) => {
+  if (typeof response?.text === 'function') {
+    return asString(await response.text(), '');
+  }
+
+  return asString(response?.text, '');
 };
 
 const callGeminiJson = async (snapshot, options = {}) => {
@@ -355,69 +415,58 @@ const callGeminiJson = async (snapshot, options = {}) => {
   }
 
   const prompt = buildPrompt(snapshot, options);
+  const ai = await getGeminiClient();
+  console.log("hi there")
   const started = Date.now();
+  let lastError = createHttpError(502, 'Gemini request failed');
 
-  const timeoutController = new AbortController();
-  const timeoutHandle = setTimeout(() => {
-    timeoutController.abort();
-  }, env.geminiTimeoutMs);
-
-  const response = await fetch(
-    `${env.geminiBaseUrl}/models/${env.geminiModel}:generateContent?key=${encodeURIComponent(env.geminiApiKey)}`,
-    {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: prompt.system }],
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: prompt.user }],
+  try {
+    const response = await withTimeout(
+      ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: prompt.user }],
+          },
+        ],
+        config: {
+          systemInstruction: prompt.system,
+          responseMimeType: 'application/json',
         },
-      ],
-      generationConfig: {
-        temperature: clamp(toSafeNumber(options.temperature, 0.35), 0, 1.2),
-        maxOutputTokens: clamp(toSafeNumber(options.maxTokens, 1400), 350, 1800),
+      }),
+      env.geminiTimeoutMs,
+      'Gemini request',
+    );
+    console.log("gemini response received:", response);
+
+    const content = await resolveGeminiText(response);
+    console.log("gemini response content:", content);
+    lastError = createHttpError(502, 'Gemini response was empty');
+
+    const parsed = extractJsonObject(content);
+    console.log("gemini response parsed:", parsed);
+
+    lastError = createHttpError(502, 'Gemini response could not be parsed as JSON');
+
+    const latencyMs = Date.now() - started;
+
+    return {
+      parsed,
+      provider: 'gemini',
+      model: response?.modelVersion || modelName,
+      latencyMs,
+      usage: {
+        promptTokens: toSafeNumber(response?.usageMetadata?.promptTokenCount, 0),
+        completionTokens: toSafeNumber(response?.usageMetadata?.candidatesTokenCount, 0),
+        totalTokens: toSafeNumber(response?.usageMetadata?.totalTokenCount, 0),
       },
-    }),
-    signal: timeoutController.signal,
-    },
-  ).finally(() => {
-    clearTimeout(timeoutHandle);
-  });
-
-  const latencyMs = Date.now() - started;
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    const message = payload?.error?.message || `Gemini request failed with status ${response.status}`;
-    throw createHttpError(response.status || 502, message);
+    };
+  } catch (error) {
+    lastError = error;
   }
 
-  const content = (payload?.candidates?.[0]?.content?.parts || [])
-    .map((part) => part?.text || '')
-    .join('\n');
-  const parsed = extractJsonObject(content);
-
-  if (!parsed) {
-    throw createHttpError(502, 'Gemini response could not be parsed as JSON');
-  }
-
-  return {
-    parsed,
-    provider: 'gemini',
-    model: payload?.modelVersion || env.geminiModel,
-    latencyMs,
-    usage: {
-      promptTokens: toSafeNumber(payload?.usageMetadata?.promptTokenCount, 0),
-      completionTokens: toSafeNumber(payload?.usageMetadata?.candidatesTokenCount, 0),
-      totalTokens: toSafeNumber(payload?.usageMetadata?.totalTokenCount, 0),
-    },
-  };
+  throw lastError;
 };
 
 const sanitizeCoachReport = (raw, snapshot, options = {}) => {
@@ -480,6 +529,7 @@ const generateCoachReport = async (userId, options = {}) => {
   let providerResult;
   try {
     const gemini = await callGeminiJson(snapshot, options);
+    console.log("gemini result:", gemini);
     providerResult = {
       provider: gemini.provider,
       model: gemini.model,
@@ -487,7 +537,8 @@ const generateCoachReport = async (userId, options = {}) => {
       usage: gemini.usage,
       report: sanitizeCoachReport(gemini.parsed, snapshot, options),
     };
-  } catch {
+  } catch (error) {
+    console.error("Error generating coach report:", error);
     providerResult = {
       provider: 'fallback',
       model: 'heuristic-engine-v1',

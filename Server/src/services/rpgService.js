@@ -5,11 +5,21 @@ const {
   QUEST_FIELDS,
   resolveLevelFromXp,
 } = require('../constants/rpg');
+const { USER_ROLES } = require('../constants/auth');
 const DailyQuest = require('../models/DailyQuest');
+const DSAProblem = require('../models/DSAProblem');
 const UserProfile = require('../models/UserProfile');
 const { evaluateAndFetchAchievements } = require('./achievementService');
 const { getDayDifference, shiftDateKey, toDateKey } = require('../utils/date');
 const { createHttpError } = require('../utils/httpError');
+
+const ACTIVE_NON_ADMIN_PLAYER_FILTER = {
+  isActive: true,
+  role: { $ne: USER_ROLES.ADMIN },
+};
+
+const DAILY_QUEST_COLLECTION = DailyQuest.collection.name;
+const DSA_PROBLEM_COLLECTION = DSAProblem.collection.name;
 
 const clampHours = (value) => {
   const numericValue = Number(value);
@@ -229,12 +239,29 @@ const ensureProfileById = async (userId) => {
 };
 
 const recalculateProfileProgress = async (profileId) => {
-  const quests = await DailyQuest.find({ userId: profileId })
-    .select('dateKey xpEarned completed')
-    .sort({ dateKey: 1 })
-    .lean();
+  const [quests, dsaXpSummary] = await Promise.all([
+    DailyQuest.find({ userId: profileId })
+      .select('dateKey xpEarned completed')
+      .sort({ dateKey: 1 })
+      .lean(),
+    DSAProblem.aggregate([
+      {
+        $match: {
+          userId: profileId,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalXp: { $sum: '$xpEarned' },
+        },
+      },
+    ]),
+  ]);
 
-  const totalXp = quests.reduce((sum, quest) => sum + (Number(quest.xpEarned) || 0), 0);
+  const totalQuestXp = quests.reduce((sum, quest) => sum + (Number(quest.xpEarned) || 0), 0);
+  const totalDsaXp = Number(dsaXpSummary?.[0]?.totalXp) || 0;
+  const totalXp = totalQuestXp + totalDsaXp;
   const completedDateKeys = quests.filter((quest) => quest.completed).map((quest) => quest.dateKey);
 
   const todayDateKey = toDateKey(new Date());
@@ -269,29 +296,174 @@ const recalculateProfileProgress = async (profileId) => {
 };
 
 const getLeaderboard = async (limit = 10) => {
-  const leaderboard = await UserProfile.find({ isActive: true })
-    .select('displayName username totalXp level currentStreak longestStreak')
-    .sort({ totalXp: -1, updatedAt: 1 })
-    .limit(limit)
-    .lean();
+  const safeLimit = Math.max(1, Number(limit) || 10);
 
-  return leaderboard;
+  return UserProfile.aggregate([
+    {
+      $match: ACTIVE_NON_ADMIN_PLAYER_FILTER,
+    },
+    {
+      $lookup: {
+        from: DAILY_QUEST_COLLECTION,
+        let: { profileId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ['$userId', '$$profileId'],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalQuestXp: { $sum: '$xpEarned' },
+            },
+          },
+        ],
+        as: 'questXp',
+      },
+    },
+    {
+      $lookup: {
+        from: DSA_PROBLEM_COLLECTION,
+        let: { profileId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ['$userId', '$$profileId'],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalDsaXp: { $sum: '$xpEarned' },
+            },
+          },
+        ],
+        as: 'dsaXp',
+      },
+    },
+    {
+      $project: {
+        displayName: 1,
+        username: 1,
+        level: 1,
+        currentStreak: 1,
+        longestStreak: 1,
+        updatedAt: 1,
+        totalXp: {
+          $add: [
+            { $ifNull: [{ $arrayElemAt: ['$questXp.totalQuestXp', 0] }, 0] },
+            { $ifNull: [{ $arrayElemAt: ['$dsaXp.totalDsaXp', 0] }, 0] },
+          ],
+        },
+      },
+    },
+    {
+      $sort: { totalXp: -1, updatedAt: 1 },
+    },
+    {
+      $limit: safeLimit,
+    },
+  ]);
+};
+
+const getLeaderboardRankForProfile = async (profile) => {
+  if (!profile || profile.role === USER_ROLES.ADMIN || profile.isActive === false) {
+    return 0;
+  }
+
+  const currentTotalXp = Number(profile.totalXp) || 0;
+
+  const usersAhead = await UserProfile.aggregate([
+    {
+      $match: ACTIVE_NON_ADMIN_PLAYER_FILTER,
+    },
+    {
+      $lookup: {
+        from: DAILY_QUEST_COLLECTION,
+        let: { profileId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ['$userId', '$$profileId'],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalQuestXp: { $sum: '$xpEarned' },
+            },
+          },
+        ],
+        as: 'questXp',
+      },
+    },
+    {
+      $lookup: {
+        from: DSA_PROBLEM_COLLECTION,
+        let: { profileId: '$_id' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $eq: ['$userId', '$$profileId'],
+              },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalDsaXp: { $sum: '$xpEarned' },
+            },
+          },
+        ],
+        as: 'dsaXp',
+      },
+    },
+    {
+      $project: {
+        totalXp: {
+          $add: [
+            { $ifNull: [{ $arrayElemAt: ['$questXp.totalQuestXp', 0] }, 0] },
+            { $ifNull: [{ $arrayElemAt: ['$dsaXp.totalDsaXp', 0] }, 0] },
+          ],
+        },
+      },
+    },
+    {
+      $match: {
+        totalXp: { $gt: currentTotalXp },
+      },
+    },
+    {
+      $count: 'count',
+    },
+  ]);
+
+  return (Number(usersAhead?.[0]?.count) || 0) + 1;
 };
 
 const getGlobalLeaderboardData = async (userId, limit = 50) => {
   const profile = await ensureProfileById(userId);
   const safeLimit = Math.min(200, Math.max(10, Number(limit) || 50));
+  const { profile: refreshedProfile } = await recalculateProfileProgress(profile._id);
 
   const [leaderboard, totalPlayers, currentUserRank] = await Promise.all([
     getLeaderboard(safeLimit),
-    UserProfile.countDocuments({ isActive: true }),
-    UserProfile.countDocuments({ isActive: true, totalXp: { $gt: profile.totalXp } }),
+    UserProfile.countDocuments(ACTIVE_NON_ADMIN_PLAYER_FILTER),
+    getLeaderboardRankForProfile(refreshedProfile),
   ]);
 
   return {
     leaderboard,
     totalPlayers,
-    currentUserRank: currentUserRank + 1,
+    currentUserRank,
   };
 };
 
@@ -310,8 +482,7 @@ const getDashboardData = async (userId, dateKey) => {
   }).lean();
 
   const leaderboard = await getLeaderboard();
-  const rank =
-    (await UserProfile.countDocuments({ isActive: true, totalXp: { $gt: refreshedProfile.totalXp } })) + 1;
+  const rank = await getLeaderboardRankForProfile(refreshedProfile);
 
   return {
     profile: refreshedProfile,
@@ -364,8 +535,7 @@ const upsertDailyQuest = async (userId, payload) => {
     achievements,
   } = await recalculateProfileProgress(profile._id);
   const leaderboard = await getLeaderboard();
-  const rank =
-    (await UserProfile.countDocuments({ isActive: true, totalXp: { $gt: refreshedProfile.totalXp } })) + 1;
+  const rank = await getLeaderboardRankForProfile(refreshedProfile);
 
   return {
     quest: updatedQuest,
@@ -436,8 +606,7 @@ const rewardSimulationQuestCompletion = async (userId, options = {}) => {
     achievements,
   } = await recalculateProfileProgress(profile._id);
   const leaderboard = await getLeaderboard();
-  const rank =
-    (await UserProfile.countDocuments({ isActive: true, totalXp: { $gt: refreshedProfile.totalXp } })) + 1;
+  const rank = await getLeaderboardRankForProfile(refreshedProfile);
 
   return {
     quest: updatedQuest,
@@ -523,8 +692,7 @@ const syncDailyQuestFromDomainActivity = async (userId, options = {}) => {
   } = await recalculateProfileProgress(profile._id);
 
   const leaderboard = await getLeaderboard();
-  const rank =
-    (await UserProfile.countDocuments({ isActive: true, totalXp: { $gt: refreshedProfile.totalXp } })) + 1;
+  const rank = await getLeaderboardRankForProfile(refreshedProfile);
 
   return {
     quest: updatedQuest,

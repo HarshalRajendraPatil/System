@@ -16,6 +16,18 @@ const LEETSCAN_ENDPOINT = 'https://leetscan.vercel.app';
 
 const calculateDSAXp = (difficulty) => DSA_DIFFICULTY_XP[difficulty] || 0;
 
+const getDifficultyRank = (difficulty) => {
+  if (difficulty === DSA_DIFFICULTY.HARD) {
+    return 3;
+  }
+
+  if (difficulty === DSA_DIFFICULTY.MEDIUM) {
+    return 2;
+  }
+
+  return 1;
+};
+
 const normalizeDSAProblemPayload = (payload = {}) => {
   const dateKey = payload.dateCompletedKey ? toDateKey(payload.dateCompletedKey) : toDateKey(new Date());
   const rawSourceKey = String(payload.sourceKey || '').trim();
@@ -516,6 +528,34 @@ const syncLeetCodeSubmissions = async (userId) => {
     } catch {
       // Ignore duplicate races and continue with recompute.
     }
+  }
+
+  const importedByDate = new Map();
+  docs.forEach((item) => {
+    const dateKey = String(item.dateCompletedKey || '').trim();
+    if (!dateKey) {
+      return;
+    }
+
+    const current = importedByDate.get(dateKey);
+    if (!current || getDifficultyRank(item.difficulty) > getDifficultyRank(current.difficulty)) {
+      importedByDate.set(dateKey, {
+        dateKey,
+        difficulty: item.difficulty,
+      });
+    }
+  });
+
+  if (importedByDate.size) {
+    await Promise.all(
+      [...importedByDate.values()].map((entry) =>
+        syncDailyQuestFromDomainActivity(profile._id, {
+          field: 'dsa',
+          dsaDifficulty: entry.difficulty,
+          dateKey: entry.dateKey,
+        })
+      ),
+    );
   }
 
   const { profile: refreshedProfile, levelInfo, achievements } = await recalculateProfileProgress(profile._id);
