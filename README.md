@@ -762,3 +762,108 @@ GrindForge currently operates as a complete and cohesive prep ecosystem with:
 - Admin command and governance dashboard
 
 This is no longer a single tracker feature set. It is an integrated placement-prep platform with end-to-end user workflows, data persistence, and operational controls.
+
+## 27. DevOps Deployment Setup
+
+This project now includes a complete deployment scaffold for local and AWS environments.
+
+### Included DevOps Assets
+
+- Dockerized server build:
+  - Server/Dockerfile
+  - Server/.dockerignore
+- Dockerized client build (nginx static serving + API proxy):
+  - Client/Dockerfile
+  - Client/nginx.conf
+  - Client/.dockerignore
+- Local one-command orchestration:
+  - docker-compose.yml
+  - services: mongo, redis, server, client
+- CI/CD workflows (GitHub Actions):
+  - .github/workflows/ci.yml
+  - .github/workflows/deploy-aws.yml
+- Terraform AWS deployment config:
+  - infra/terraform/versions.tf
+  - infra/terraform/variables.tf
+  - infra/terraform/main.tf
+  - infra/terraform/outputs.tf
+  - infra/terraform/terraform.tfvars.example
+- Deployment helper commands:
+  - Makefile
+- Infra guide:
+  - infra/README.md
+
+### Local Deployment
+
+Option 1 (Makefile):
+1. make local-up
+2. open http://localhost:8080
+
+Option 2 (direct docker compose):
+1. docker compose up -d --build
+2. open http://localhost:8080
+
+Default local URLs:
+- App: http://localhost:8080
+- API: http://localhost:4000/api/v1
+
+### AWS Deployment (Terraform + ECS Fargate)
+
+The Terraform stack provisions:
+- VPC + 2 public subnets + routing
+- Application Load Balancer
+- ECS Cluster
+- ECS Services (web + api)
+- CloudWatch log groups
+- IAM execution/task roles
+
+ALB routing:
+- /api/* and /socket.io/* -> API service
+- all other paths -> Web service
+
+Manual deploy steps:
+1. Copy vars template:
+   - cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars
+2. Fill required values in terraform.tfvars (Mongo URI, JWT secrets, image URIs)
+3. Run:
+   - cd infra/terraform
+   - terraform init
+   - terraform apply
+4. Get URL:
+   - terraform output alb_dns_name
+
+### CI/CD Pipeline
+
+CI workflow (ci.yml):
+- Runs on push and pull request
+- Installs dependencies
+- Builds client
+- Runs server test script
+- Builds docker images
+
+CD workflow (deploy-aws.yml):
+- Runs on main branch push or manual dispatch
+- Assumes AWS role
+- Ensures ECR repos exist
+- Builds and pushes api + web images
+- Applies Terraform with image tags from commit SHA
+
+Required GitHub repo configuration:
+- Variables:
+  - AWS_REGION
+- Secrets:
+  - AWS_ROLE_TO_ASSUME
+  - MONGODB_URI
+  - JWT_ACCESS_SECRET
+  - JWT_REFRESH_SECRET
+  - GEMINI_API_KEY
+
+### Production Hardening Recommendations
+
+For production-grade security and resilience, consider:
+1. Move sensitive runtime values to AWS Secrets Manager or SSM Parameter Store.
+2. Enable HTTPS with ACM and ALB listener 443.
+3. Set SECURE_COOKIES=true and tighten cookie domain/samesite policy for your domain.
+4. Use private subnets + NAT for ECS tasks.
+5. Add autoscaling policies for ECS services and ALB target tracking.
+6. Add Terraform remote state backend (S3 + DynamoDB lock).

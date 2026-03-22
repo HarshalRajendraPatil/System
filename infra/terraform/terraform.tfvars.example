@@ -1,0 +1,14 @@
+aws_region         = "us-east-1"
+project_name       = "grindforge"
+environment        = "prod"
+desired_count      = 1
+
+# Replace these with image URIs pushed to ECR
+api_image          = "123456789012.dkr.ecr.us-east-1.amazonaws.com/grindforge-server:latest"
+web_image          = "123456789012.dkr.ecr.us-east-1.amazonaws.com/grindforge-client:latest"
+
+# Secrets
+mongodb_uri        = "mongodb+srv://<user>:<password>@<cluster>/<db>?retryWrites=true&w=majority"
+jwt_access_secret  = "change-me"
+jwt_refresh_secret = "change-me"
+gemini_api_key     = ""

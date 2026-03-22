@@ -1,0 +1,76 @@
+name: Deploy AWS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  TF_IN_AUTOMATION: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Ensure ECR repositories exist
+        run: |
+          aws ecr describe-repositories --repository-names grindforge-server >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name grindforge-server
+          aws ecr describe-repositories --repository-names grindforge-client >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name grindforge-client
+
+      - name: Build and push server image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/grindforge-server:$IMAGE_TAG ./Server
+          docker push $ECR_REGISTRY/grindforge-server:$IMAGE_TAG
+
+      - name: Build and push client image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/grindforge-client:$IMAGE_TAG --build-arg VITE_API_BASE_URL=/api/v1 ./Client
+          docker push $ECR_REGISTRY/grindforge-client:$IMAGE_TAG
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        working-directory: infra/terraform
+        run: terraform init
+
+      - name: Terraform apply
+        working-directory: infra/terraform
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_project_name: grindforge
+          TF_VAR_environment: prod
+          TF_VAR_api_image: ${{ steps.login-ecr.outputs.registry }}/grindforge-server:${{ github.sha }}
+          TF_VAR_web_image: ${{ steps.login-ecr.outputs.registry }}/grindforge-client:${{ github.sha }}
+          TF_VAR_mongodb_uri: ${{ secrets.MONGODB_URI }}
+          TF_VAR_jwt_access_secret: ${{ secrets.JWT_ACCESS_SECRET }}
+          TF_VAR_jwt_refresh_secret: ${{ secrets.JWT_REFRESH_SECRET }}
+          TF_VAR_gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+        run: terraform apply -auto-approve
